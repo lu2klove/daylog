@@ -2,9 +2,11 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA9zQYyAAAE/klEQVR4nO3cz3HTQBjG4XWGvjhTAQVwZYZaMsM1BaQCzqkMLpgkxo71Z3clvfs8Bciy9fOXz55Yp7ITn799/b31ObDOy9Pzaetz2OQExDuGLQLv9oAiHluvuJs/iJC51DLuZgcWMve0CLv6AYXMXDXDrnYgIbNGrairHETM1LI27Ie1JyBmalrb0+J3g5Bpbcm0XjShxUwPSzqbHbSY6Wlub7OCFjNbmNPd5KDFzJam9jcpaDGzB1M6XP21HezJ3aBNZ/bkXo8fBi1m9uijLm8GLWb27FafdmiiXA3adOYIrnVqQhPlv6BNZ47kslcTmijvgjadOaK33ZrQRPkXtOnMkZ37NaGJImiinEqxbpDDhCaKoIkiaKIImigPPhCSxIQmiqCJImiiCJoogibKp61P4Mh+Pf5sduwvP743O3YyE3qhljH3OH4qQS/QKzZRzyfomXpHJup5BE2UoT4ULpl2e/xwlvI8WhgiaH+2X1+D9LCjgxby/9LDjt2hW8XcO4RWj5f6Zo8MuubFunasXlFfe5zWz+3o4oLudZFaR93rTZMWdfQOXcuvx59XA+u9fqTF10LUhG55wbeOKfm51RQVdGtbXfik4Fo7pfymsPdF77FuJD6n1uzQC5ma+2TlIIqgiSJoogiaKIImiqCJImiiCJoogiaKoIkiaKIImiiCJoqgiSJoogiaKIImiqBDJPx8qgZBBzjHLGpBx/ny4/vQYQv64G7FO2rUgj6we9GOOK0FfVBzQh0pakEPYKR7iAj6gEaauHMJ+mDmxjzSdC5F0Ici5vsEHWrEmEsR9GHYm6cR9AFYNaYT9M6JeR5BBxk95lIEvWv25vkEvVNWjWUEHUDMrwS9Q3Oms5jfE/TO2JvXEfSO2JvXE/RBifk6Qe+EVaMOQe+AVaMeQV/Rc1qKuS5BX9jzPS7EfJ+g37iMuHXUe3zTHJ2g/+p9fwurRhuCLtPub9Hz8S6Jebrhg54a11brgZjnGTrouZHWiNre3NawQS8Na02QVo32hg16TSw9pqyYlxk26FL6Ru1fQvsYOuhS+kRtb+5n+KBLaRu1vbkvQf+1h51azOsJ+o3aUVs1+hP0hVpRWzW2Iegr1kYt5u0I+oZekYm5LkF/QGzHI+g7WkbtDVOfoCdoEZ6Y2xD0RDUDFHM7gp5BiPsn6JnWRu1N0ZagF1gapZjbE/RCc+MUcx+CXkGk+yPolaZELfx+BF3BOdjLcH89/hRzZ5+2PoEUt6KmLxOaKIImiqCJImiiCJoogiaKoIkiaKIImiiCJoqgiRITtNturZPy+sUEDaWEBZ0yZXpLet2igoa4oJOmTQ9pr1dc0KXkXaRWEl+nyKBLybxYNaW+PqfP377+3vokWvOzqFepIZ8NEfTZyGGnh3w2VNDke3h5ej5tfRJQS+yHQsYkaKIImigPpZRijybBy9PzyYQmiqCJ8i9oawdHdu7XhCaKoInyLmhrB0f0tlsTmij/BW1KcySXvZrQRLkatCnNEVzr9OaEFjV7dqtPKwdRPgzalGaPPury7oQWNXtyr0crB4cxZbhOCtqU5igmT2hRs6Wp/c1aOUTNFuZ0N3uHFjU9ze1tcZxuUENLSwfn6mkrbGpbswWs/trOCkJNa3uqFqNJzRq1BmP16Sps5qr5V77ZuiBs7mmxrjbff4XNpZafu7p9oBP22Hp9ebDJNxTiHsMW34D9Ad6oyZRbhzkbAAAAAElFTkSuQmCC">
+<meta name="theme-color" content="#3F6357">
 <title>업무일지 · 출장/경비/야근 관리</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;500;600;700&family=Noto+Sans+KR:wght@300;400&family=Nanum+Gothic:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700&display=swap');
@@ -69,6 +71,7 @@
     font-family:'IBM Plex Sans KR',sans-serif;
     -webkit-font-smoothing:antialiased;
     transition:background .2s ease,color .2s ease;
+    touch-action:manipulation;
   }
   body.font-system, body.font-system *{ font-family:system-ui !important; }
   body.font-serif, body.font-serif *{ font-family:serif !important; }
@@ -504,7 +507,7 @@
   input[type="text"], input[type="number"], input[type="date"], input[type="time"], input[type="password"], input[type="email"], select, textarea{
     width:100%;
     font-family:'IBM Plex Sans KR',sans-serif;
-    font-size:14px;
+    font-size:16px;
     padding:11px 12px;
     border:1px solid var(--line);
     border-radius:8px;
@@ -3523,7 +3526,7 @@
     // ① 직원 현황 도넛차트 (재직자 기준, 드롭다운으로 항목 선택)
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
     html += '<p class="field-label field-label-strong" style="margin:0;">📊 직원 현황 (재직자 '+stats.active.length+'명)</p>';
-    html += '<select id="employeeDonutFieldSelect" style="width:auto;padding:6px 10px;font-size:12.5px;">';
+    html += '<select id="employeeDonutFieldSelect" style="width:auto;padding:6px 10px;font-size:16px;">';
     EMPLOYEE_DONUT_FIELDS.forEach(function(f){
       html += '<option value="'+f[0]+'"'+(employeeDonutField===f[0]?' selected':'')+'>'+f[1]+'</option>';
     });
@@ -3542,7 +3545,7 @@
     // 직원 칩을 클릭하면 그 아래에 실제 목록이 나와요.
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">';
     html += '<p class="field-label field-label-strong" style="margin:0;">📜 직원 교육/자격증/상벌 현황</p>';
-    html += '<select id="employeeStatChartFieldSelect" style="width:auto;padding:6px 10px;font-size:12.5px;">';
+    html += '<select id="employeeStatChartFieldSelect" style="width:auto;padding:6px 10px;font-size:16px;">';
     EMPLOYEE_STAT_CHART_FIELDS.forEach(function(f){
       html += '<option value="'+f[0]+'"'+(employeeStatChartField===f[0]?' selected':'')+'>'+f[1]+'</option>';
     });
@@ -3591,7 +3594,7 @@
     html += '<div class="rule-card" style="flex:1;text-align:center;">';
     html += '<div style="display:flex;align-items:center;justify-content:center;gap:5px;">';
     html += '<span style="font-size:11px;color:var(--ink-faint);">🌳 장기근속자</span>';
-    html += '<select id="tenureThresholdSelect" style="width:auto;padding:2px 5px;font-size:10.5px;">';
+    html += '<select id="tenureThresholdSelect" style="width:auto;padding:2px 5px;font-size:16px;">';
     [3,5,10,15,20].forEach(function(y){
       html += '<option value="'+y+'"'+(tenureThresholdYears===y?' selected':'')+'>'+y+'년'+(y===20?'이상':'↑')+'</option>';
     });
@@ -7322,7 +7325,7 @@
         html += '<p class="record-sub">'+niceDate(e.date)+' · '+recordSummary(e)+'</p>';
         if(e.type === 'trip'){
           html += '<div style="margin-top:8px;">';
-          html += '<select class="stats_settlement_select" data-id="'+e.id+'" style="width:auto;font-size:12.5px;padding:6px 8px;'+(e.settlementStatus!=='done'?'border-color:var(--brick);color:var(--brick);':'')+'">';
+          html += '<select class="stats_settlement_select" data-id="'+e.id+'" style="width:auto;font-size:16px;padding:6px 8px;'+(e.settlementStatus!=='done'?'border-color:var(--brick);color:var(--brick);':'')+'">';
           ['pending','done','none'].forEach(function(s){
             html += '<option value="'+s+'"'+(e.settlementStatus===s?' selected':'')+'>'+SETTLEMENT_LABEL[s]+'</option>';
           });
