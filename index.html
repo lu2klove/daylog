@@ -283,7 +283,7 @@
   .cell.holiday{ color:var(--brick); }
   .cell.today{ color:var(--brick) !important; font-weight:700; }
   .holiday-label{
-    position:absolute; bottom:1px; left:1px; right:1px;
+    position:absolute; top:1px; left:1px; right:1px;
     font-size:7px; color:var(--brick); line-height:1;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     text-align:center; pointer-events:none;
@@ -2529,7 +2529,7 @@
   var EXPENSE_TYPE_KEY = 'workjournal:expensetypes';
   var EXPENSE_TYPE_LOCAL_KEY = 'work_journal_expensetypes_v1';
   function getDefaultExpenseTypes(){
-    return ['요식비','교통비','숙박비','출장경비','기타'].map(function(n){ return { name:n, budget:0 }; });
+    return ['요식비','교통비','숙박비','출장경비','기타'].map(function(n){ return { name:n, budget:0, budgetMode:'none', budgetSetMonth:'' }; });
   }
   var expenseTypes = getDefaultExpenseTypes();
 
@@ -2584,8 +2584,11 @@
   function migrateExpenseTypes(list){
     if(!Array.isArray(list)) return getDefaultExpenseTypes();
     return list.map(function(item){
-      if(typeof item === 'string') return { name:item, budget:0 };
-      return { name:item.name || '', budget:item.budget || 0 };
+      if(typeof item === 'string') return { name:item, budget:0, budgetMode:'none', budgetSetMonth:'' };
+      var budget = item.budget || 0;
+      var mode = item.budgetMode;
+      if(!mode){ mode = budget > 0 ? 'monthly' : 'none'; }
+      return { name:item.name || '', budget:budget, budgetMode:mode, budgetSetMonth:item.budgetSetMonth || '' };
     });
   }
 
@@ -5341,11 +5344,24 @@
     if(expenseTypes.length === 0){
       html += '<p class="empty-inline">등록된 유형이 없어요.</p>';
     }
+    var curMonthLabel = todayStr().slice(0,7);
     expenseTypes.forEach(function(t, i){
-      html += '<div class="row2" style="grid-template-columns:1.2fr 1fr auto;margin-bottom:8px;">';
+      var mode = t.budgetMode || 'none';
+      html += '<div class="card" style="padding:10px;margin-bottom:8px;">';
+      html += '<div class="row2" style="grid-template-columns:1fr auto;margin-bottom:6px;">';
       html += '<input type="text" class="es_typename_input" data-idx="'+i+'" value="'+escapeHtml(t.name)+'" placeholder="유형 이름">';
-      html += '<input type="number" class="es_typebudget_input" data-idx="'+i+'" value="'+(t.budget||'')+'" placeholder="예산(원)">';
       html += '<button class="danger es_type_del" data-idx="'+i+'" type="button">삭제</button>';
+      html += '</div>';
+      html += '<div class="chiprow es_typebudgetmode" data-idx="'+i+'" style="margin-bottom:6px;">';
+      html += '<button type="button" class="chip'+(mode==='current'?' selected':'')+'" data-mode="current">현재월 옵션</button>';
+      html += '<button type="button" class="chip'+(mode==='monthly'?' selected':'')+'" data-mode="monthly">매월 지정된 금액 적용</button>';
+      html += '<button type="button" class="chip'+(mode==='none'?' selected':'')+'" data-mode="none">예산 사용 안함</button>';
+      html += '</div>';
+      html += '<input type="number" class="es_typebudget_input" data-idx="'+i+'" value="'+(t.budget||'')+'" placeholder="예산(원)"'+(mode==='none'?' style="display:none;"':'')+'>';
+      if(mode==='current'){
+        var stale = t.budgetSetMonth && t.budgetSetMonth !== curMonthLabel;
+        html += '<p style="font-size:11px;color:'+(stale?'var(--brick)':'var(--ink-faint)')+';margin:4px 0 0;">'+(stale ? '지난달 예산이에요. 이번 달 예산을 다시 저장해주세요.' : '이번 달('+curMonthLabel+')에만 적용돼요.')+'</p>';
+      }
       html += '</div>';
     });
     html += '<div class="row2" style="grid-template-columns:1.2fr 1fr auto;margin-bottom:12px;">';
@@ -5370,7 +5386,21 @@
       inp.addEventListener('change', async function(){
         var idx = parseInt(inp.getAttribute('data-idx'), 10);
         expenseTypes[idx].budget = parseFloat(inp.value) || 0;
+        if(expenseTypes[idx].budgetMode === 'current'){ expenseTypes[idx].budgetSetMonth = todayStr().slice(0,7); }
         await saveExpenseTypes();
+        renderExpenseSettingsScreen();
+      });
+    });
+    document.querySelectorAll('.es_typebudgetmode').forEach(function(row){
+      row.querySelectorAll('[data-mode]').forEach(function(btn){
+        btn.addEventListener('click', async function(){
+          var idx = parseInt(row.getAttribute('data-idx'), 10);
+          var mode = btn.getAttribute('data-mode');
+          expenseTypes[idx].budgetMode = mode;
+          if(mode === 'current'){ expenseTypes[idx].budgetSetMonth = todayStr().slice(0,7); }
+          await saveExpenseTypes();
+          renderExpenseSettingsScreen();
+        });
       });
     });
     document.querySelectorAll('.es_type_del').forEach(function(btn){
@@ -5386,7 +5416,7 @@
       var budgetInp = document.getElementById('es_type_newbudget');
       var name = nameInp.value.trim();
       if(!name) return;
-      expenseTypes.push({ name:name, budget: parseFloat(budgetInp.value) || 0 });
+      expenseTypes.push({ name:name, budget: parseFloat(budgetInp.value) || 0, budgetMode:'none', budgetSetMonth:'' });
       await saveExpenseTypes();
       renderExpenseSettingsScreen();
     });
@@ -6653,14 +6683,16 @@
   }
   function renderBudgetStatusHTML(spent, budget){
     var remain = budget - spent;
-    var html = '<p style="font-size:12px;margin:5px 0 0;font-weight:600;';
+    var statusHtml = '';
     if(remain < 0){
-      html += 'color:var(--brick);">⚠️ 경고! 마이너스 (예산보다 '+formatWon(Math.abs(remain))+'원 초과 · 예산 '+formatWon(budget)+'원)</p>';
+      statusHtml = '<span style="color:var(--brick);">⚠️ 예산보다 '+formatWon(Math.abs(remain))+'원 초과</span>';
     }else if(remain === 0){
-      html += 'color:var(--ink-soft);">🚫 그만 사용 (예산 '+formatWon(budget)+'원 전부 사용)</p>';
+      statusHtml = '<span style="color:var(--ink-soft);">🚫 예산 전부 사용</span>';
     }else{
-      html += 'color:var(--pine);">👌 더 쓰셔도 됩니다 (남은 예산 '+formatWon(remain)+'원 · 총 예산 '+formatWon(budget)+'원)</p>';
+      statusHtml = '<span style="color:var(--pine);">👌 여유 있어요</span>';
     }
+    var html = '<p style="font-size:12px;margin:5px 0 0;font-weight:600;">'+statusHtml+'</p>';
+    html += '<p style="font-size:11px;color:var(--ink-soft);margin:2px 0 0;font-family:\'IBM Plex Mono\',monospace;">사용액 '+formatWon(spent)+'원 · 예산 '+formatWon(budget)+'원 · 잔액 '+formatWon(remain)+'원</p>';
     return html;
   }
   function refreshAfterSave(){
@@ -7119,6 +7151,18 @@
         maxTypeAmt = Math.max.apply(null, expenseTypes.map(function(t){ return typeBreakdown[t.name].amount; }).concat([untyped.amount, 1]));
       }
 
+      // 예산 비교는 선택된 통계 기간과 무관하게 항상 '이번 달' 실제 지출 기준으로 계산
+      var curMonthLabel2 = todayStr().slice(0,7);
+      var curMonthSpentByType = {};
+      expenseTypes.forEach(function(t){ curMonthSpentByType[t.name] = 0; });
+      entries.forEach(function(e){
+        if(e.type !== 'expense') return;
+        if((e.date||'').slice(0,7) !== curMonthLabel2) return;
+        if(e.expenseType && curMonthSpentByType.hasOwnProperty(e.expenseType)){
+          curMonthSpentByType[e.expenseType] += recordAmount(e);
+        }
+      });
+
       html += '<p class="field-label field-label-strong" style="margin-top:20px;">📁 경비 유형별 보기</p>';
       html += '<div class="chiprow" id="statsExpenseTypeChips" style="margin-bottom:16px;">';
       html += '<button class="chip'+(statsExpenseTypeFilter===''?' selected':'')+'" data-val="" type="button">전체</button>';
@@ -7135,11 +7179,12 @@
         html += '<div class="stat-bar-row">';
         html += '<div class="stat-bar-label"><span>'+escapeHtml(t.name)+' · '+b.count+'건</span><span style="font-family:\'IBM Plex Mono\',monospace;font-weight:700;">'+formatWon(b.amount)+'원</span></div>';
         html += '<div class="stat-bar-track"><div class="stat-bar-fill" style="width:'+pct+'%;background:var(--olive);"></div></div>';
-        var budgetApplicablePeriod = (statsPeriodMode === 'week' || statsPeriodMode === 'lastweek' || statsPeriodMode === 'month');
-        if(t.budget > 0 && budgetApplicablePeriod){
-          html += renderBudgetStatusHTML(b.amount, t.budget);
-        }else if(t.budget > 0){
-          html += '<p style="font-size:11px;color:var(--ink-faint);margin:5px 0 0;">예산 비교는 이번주·전주·이번달 기간에서만 표시돼요</p>';
+        var mode = t.budgetMode || 'none';
+        var budgetValid = t.budget > 0 && (mode === 'monthly' || (mode === 'current' && t.budgetSetMonth === curMonthLabel2));
+        if(budgetValid){
+          html += renderBudgetStatusHTML(curMonthSpentByType[t.name] || 0, t.budget);
+        }else if(mode === 'current' && t.budget > 0){
+          html += '<p style="font-size:11px;color:var(--brick);margin:5px 0 0;">이번 달 예산이 아직 설정되지 않았어요. 설정에서 다시 저장해주세요.</p>';
         }
         html += '</div>';
       });
