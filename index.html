@@ -336,6 +336,24 @@
     font-size:9px;
     line-height:1;
   }
+  .holiday-label{
+    position:absolute;
+    top:1px;
+    left:2px;
+    right:2px;
+    font-size:8px;
+    line-height:1.1;
+    text-align:center;
+    color:var(--brick);
+    font-weight:700;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  }
+  @media (min-width:768px){
+    .holiday-label{ font-size:9.5px; top:2px; }
+  }
   .cell .dot{
     width:5px; height:5px;
     border-radius:50%;
@@ -1300,8 +1318,9 @@
     <button class="sheet-close" id="settingsCloseBtn" type="button">✕</button>
   </div>
 
-  <div id="currentEmployeeInfo" style="display:none;background:var(--paper-raised);border-radius:10px;padding:10px 14px;margin-bottom:16px;align-items:center;gap:8px;">
+  <div id="currentEmployeeInfo" style="display:none;background:var(--paper-raised);border-radius:10px;padding:10px 14px;margin-bottom:16px;align-items:center;justify-content:space-between;gap:8px;">
     <span id="currentEmployeeInfoText" style="font-size:12.5px;font-weight:600;"></span>
+    <button class="cancelbtn" id="myInfoOpenBtn" type="button" style="padding:6px 12px;font-size:12px;flex-shrink:0;">MY정보 ›</button>
   </div>
 
   <p class="card-title no-divider">🌓 테마</p>
@@ -1391,6 +1410,7 @@
   <p class="savehint" id="lastBackupInfo"></p>
   </div>
 
+  <div id="settingsPwSection">
   <p class="card-title">🔒 보안</p>
   <button class="cancelbtn" id="changePwBtn" type="button" style="width:100%;">비밀번호 변경</button>
   <div id="changePwForm" style="display:none;margin-top:12px;">
@@ -1402,7 +1422,17 @@
     </div>
     <p class="toast" id="pwToast"></p>
   </div>
+  </div>
   <button class="cancelbtn" id="logoutBtn" type="button" style="width:100%;margin-top:8px;">🚪 로그아웃</button>
+</div>
+
+<!-- MY정보 (직원 본인 정보 조회/수정) -->
+<div class="bottom-sheet" id="myInfoSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">🙋 MY정보</span>
+    <button class="sheet-close" id="myInfoCloseBtn" type="button">✕</button>
+  </div>
+  <div id="myInfoBody"></div>
 </div>
 
 <script>
@@ -2165,6 +2195,12 @@
       cell.setAttribute('data-date', dateStr);
       if(holidayName) cell.title = holidayName;
       cell.textContent = d;
+      if(holidayName){
+        var holidayLabel = document.createElement('span');
+        holidayLabel.className = 'holiday-label';
+        holidayLabel.textContent = holidayName;
+        cell.appendChild(holidayLabel);
+      }
 
       var hasUnsettledTrip = isAdminUser() && dayEntriesAll.some(function(e){
         return (e.type === 'trip' || e.type === 'welfare') && e.settlementStatus && e.settlementStatus !== 'done';
@@ -4105,7 +4141,7 @@
   var tenureThresholdYears = 3;
   var tenureListExpanded = false;
   function renderEmployeeAwardsList(){
-    var wrap = document.getElementById('emp_awardsList');
+    var wrap = document.getElementById(empListIdPrefix+'_awardsList');
     if(!wrap) return;
     if(currentEmployeeAwards.length === 0){
       wrap.innerHTML = '<p class="empty-inline">등록된 상벌 기록이 없어요.</p>';
@@ -4149,7 +4185,7 @@
   function openAwardInlineForm(editIdx){
     var isEdit = (editIdx != null);
     var existing = isEdit ? currentEmployeeAwards[editIdx] : null;
-    var wrap = document.getElementById('emp_awardsList');
+    var wrap = document.getElementById(empListIdPrefix+'_awardsList');
     var html = '<div class="rule-card" style="margin-bottom:8px;">';
     html += '<div class="chiprow" id="award_kindChips" style="margin-bottom:8px;">';
     html += '<button class="chip'+(!existing || existing.kind==='award'?' selected':'')+'" data-kind="award" type="button">🏆 상</button>';
@@ -4190,8 +4226,8 @@
   }
 
   function renderEmployeeCertList(){
-    var wrap = document.getElementById('emp_certList');
-    var pagerWrap = document.getElementById('emp_certPager');
+    var wrap = document.getElementById(empListIdPrefix+'_certList');
+    var pagerWrap = document.getElementById(empListIdPrefix+'_certPager');
     if(!wrap) return;
     var sorted = currentEmployeeCertifications.slice().sort(function(a,b){ return (b.date||'') < (a.date||'') ? -1 : 1; });
     if(sorted.length === 0){
@@ -4257,7 +4293,7 @@
   function openCertInlineForm(editIdx){
     var isEdit = (editIdx != null);
     var existing = isEdit ? currentEmployeeCertifications[editIdx] : null;
-    var wrap = document.getElementById('emp_certList');
+    var wrap = document.getElementById(empListIdPrefix+'_certList');
     var html = '<div class="rule-card" style="margin-bottom:8px;">';
     html += '<div class="field"><span class="field-label">자격증명</span><input type="text" id="cert_name" placeholder="예: 정보처리기사" value="'+(existing?escapeHtml(existing.name||''):'')+'"></div>';
     html += '<div class="field"><span class="field-label">자격증 번호</span><input type="text" id="cert_number" placeholder="선택 입력" value="'+(existing?escapeHtml(existing.number||''):'')+'"></div>';
@@ -4301,8 +4337,8 @@
   }
 
   function renderEmployeeEduList(){
-    var wrap = document.getElementById('emp_eduList');
-    var pagerWrap = document.getElementById('emp_eduPager');
+    var wrap = document.getElementById(empListIdPrefix+'_eduList');
+    var pagerWrap = document.getElementById(empListIdPrefix+'_eduPager');
     if(!wrap) return;
     var sorted = currentEmployeeEducations.slice().sort(function(a,b){ return (b.startDate||'') < (a.startDate||'') ? -1 : 1; });
     if(sorted.length === 0){
@@ -4372,7 +4408,7 @@
   function openEduInlineForm(editIdx){
     var isEdit = (editIdx != null);
     var existing = isEdit ? currentEmployeeEducations[editIdx] : null;
-    var wrap = document.getElementById('emp_eduList');
+    var wrap = document.getElementById(empListIdPrefix+'_eduList');
     var html = '<div class="rule-card" style="margin-bottom:8px;">';
     html += '<div class="field"><span class="field-label">교육명</span><input type="text" id="edu_name" placeholder="예: 신입사원 OJT" value="'+(existing?escapeHtml(existing.name||''):'')+'"></div>';
     html += '<div class="row2"><div class="field"><span class="field-label">시작일</span><input type="date" id="edu_startDate" value="'+(existing?existing.startDate||'':'')+'"></div><div class="field"><span class="field-label">종료일</span><input type="date" id="edu_endDate" value="'+(existing?existing.endDate||'':'')+'"></div></div>';
@@ -4523,6 +4559,7 @@
   }
 
   function openEmployeeForm(existing){
+    empListIdPrefix = 'emp';
     editingEmployeeId = existing ? existing.id : null;
     var e = existing || {};
     currentEmployeePhoto = e.photo || null;
@@ -4739,6 +4776,190 @@
     applyRoleUI();
     closeSheet('employeeFormSheet');
     renderEmployeeSettingsScreen();
+  }
+
+
+  // ---------- MY정보 (직원 본인 정보 조회/수정) ----------
+  function openMyInfoForm(){
+    if(!currentEmployee) return;
+    empListIdPrefix = 'my';
+    var existing = employees.find(function(x){ return x.id === currentEmployee.id; }) || currentEmployee;
+    editingEmployeeId = existing.id;
+    currentEmployeeAwards = (existing.awards || []).slice();
+    currentEmployeeCertifications = (existing.certifications || []).slice();
+    currentEmployeeEducations = (existing.educations || []).slice();
+    certListPage = 1;
+    eduListPage = 1;
+    var body = document.getElementById('myInfoBody');
+    function optSelect(fieldId, list, current){
+      var h = '<select id="'+fieldId+'"><option value="">선택 안 함</option>';
+      (list||[]).forEach(function(v){
+        h += '<option value="'+escapeHtml(v)+'"'+(current===v?' selected':'')+'>'+escapeHtml(v)+'</option>';
+      });
+      h += '</select>';
+      return h;
+    }
+    var html = '';
+    html += '<div class="field"><span class="field-label field-label-strong">👤 이름</span><input type="text" id="my_name" placeholder="예: 홍길동" value="'+escapeHtml(existing.name||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">성별</span><div class="chiprow" id="my_genderChips">';
+    ['남','여'].forEach(function(g){
+      html += '<button class="chip'+(existing.gender===g?' selected':'')+'" data-gender="'+g+'" type="button">'+g+'</button>';
+    });
+    html += '</div></div>';
+    html += '<div class="field"><span class="field-label">생년월일</span><input type="date" id="my_birthDate" value="'+(existing.birthDate||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">회사명</span>'+optSelect('my_company', employeeCompanies, existing.company)+'</div>';
+    html += '<div class="field"><span class="field-label">부서명</span>'+optSelect('my_department', employeeDepartments, existing.department)+'</div>';
+    html += '<div class="field"><span class="field-label">직무</span>'+optSelect('my_job', employeeJobs, existing.job)+'</div>';
+    html += '<div class="field"><span class="field-label">직급</span><select id="my_position">';
+    EMPLOYEE_POSITIONS.forEach(function(p){
+      html += '<option value="'+p+'"'+(existing.position===p?' selected':'')+'>'+p+'</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="field"><span class="field-label">근무지</span>'+optSelect('my_workLocation', employeeWorkLocations, existing.workLocation)+'</div>';
+    html += '<div class="field"><span class="field-label">연차개수 (당해년)</span><input type="number" id="my_annualLeaveDays" placeholder="예: 15" value="'+(existing.annualLeaveDays!=null?existing.annualLeaveDays:'')+'"></div>';
+
+    html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+    html += '<p class="field-label field-label-strong" style="margin:0;">🏅 상벌 등록</p>';
+    html += '<button class="cancelbtn" id="my_awardToggleBtn" type="button" style="font-size:11.5px;padding:5px 10px;">펼치기 ▾</button>';
+    html += '</div>';
+    html += '<div id="my_awardSection" style="display:none;">';
+    html += '<div id="my_awardsList"></div>';
+    html += '<button class="cancelbtn" id="my_awardAddBtn" type="button" style="width:100%;margin-top:6px;">+ 상벌 추가</button>';
+    html += '</div>';
+
+    html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+    html += '<p class="field-label field-label-strong" style="margin:0;">📜 자격현황</p>';
+    html += '<button class="cancelbtn" id="my_certToggleBtn" type="button" style="font-size:11.5px;padding:5px 10px;">펼치기 ▾</button>';
+    html += '</div>';
+    html += '<div id="my_certSection" style="display:none;">';
+    html += '<div id="my_certList"></div>';
+    html += '<div id="my_certPager" class="pager" style="margin-top:8px;"></div>';
+    html += '<button class="cancelbtn" id="my_certAddBtn" type="button" style="width:100%;margin-top:6px;">+ 자격증 추가</button>';
+    html += '</div>';
+
+    html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+    html += '<p class="field-label field-label-strong" style="margin:0;">📚 교육현황</p>';
+    html += '<button class="cancelbtn" id="my_eduToggleBtn" type="button" style="font-size:11.5px;padding:5px 10px;">펼치기 ▾</button>';
+    html += '</div>';
+    html += '<div id="my_eduSection" style="display:none;">';
+    html += '<div id="my_eduList"></div>';
+    html += '<div id="my_eduPager" class="pager" style="margin-top:8px;"></div>';
+    html += '<button class="cancelbtn" id="my_eduAddBtn" type="button" style="width:100%;margin-top:6px;">+ 교육 추가</button>';
+    html += '</div>';
+
+    html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
+    html += '<p class="field-label field-label-strong">🔒 비밀번호 변경</p>';
+    html += '<button class="cancelbtn" id="my_changePwBtn" type="button" style="width:100%;">비밀번호 변경</button>';
+    html += '<div id="my_changePwForm" style="display:none;margin-top:12px;">';
+    html += '<input type="password" id="my_newPw1" placeholder="새 비밀번호 (4자 이상)">';
+    html += '<input type="password" id="my_newPw2" placeholder="새 비밀번호 확인">';
+    html += '<div class="row2"><button class="cancelbtn" id="my_cancelPwBtn" type="button">취소</button><button class="savebtn" id="my_savePwBtn" type="button">변경</button></div>';
+    html += '<p class="toast" id="my_pwToast"></p>';
+    html += '</div>';
+
+    html += '<div class="row2" style="margin-top:16px;">';
+    html += '<button class="cancelbtn" id="my_cancelBtn" type="button">취소</button>';
+    html += '<button class="savebtn" id="my_saveBtn" type="button">저장</button>';
+    html += '</div>';
+
+    body.innerHTML = html;
+
+    function wireSingleSelectChips(containerId){
+      document.querySelectorAll('#'+containerId+' .chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          var already = c.classList.contains('selected');
+          document.querySelectorAll('#'+containerId+' .chip').forEach(function(x){ x.classList.remove('selected'); });
+          if(!already) c.classList.add('selected');
+        });
+      });
+    }
+    wireSingleSelectChips('my_genderChips');
+
+    renderEmployeeAwardsList();
+    renderEmployeeCertList();
+    renderEmployeeEduList();
+    document.getElementById('my_awardAddBtn').addEventListener('click', function(){ openAwardInlineForm(); });
+    document.getElementById('my_certAddBtn').addEventListener('click', function(){ openCertInlineForm(); });
+    document.getElementById('my_eduAddBtn').addEventListener('click', function(){ openEduInlineForm(); });
+    function wireCollapseToggle(btnId, sectionId){
+      document.getElementById(btnId).addEventListener('click', function(){
+        var sec = document.getElementById(sectionId);
+        var isOpen = sec.style.display !== 'none';
+        sec.style.display = isOpen ? 'none' : 'block';
+        this.textContent = isOpen ? '펼치기 ▾' : '접기 ▴';
+      });
+    }
+    wireCollapseToggle('my_awardToggleBtn', 'my_awardSection');
+    wireCollapseToggle('my_certToggleBtn', 'my_certSection');
+    wireCollapseToggle('my_eduToggleBtn', 'my_eduSection');
+
+    document.getElementById('my_changePwBtn').addEventListener('click', function(){
+      var form = document.getElementById('my_changePwForm');
+      form.style.display = (form.style.display === 'none') ? 'block' : 'none';
+      document.getElementById('my_newPw1').value = '';
+      document.getElementById('my_newPw2').value = '';
+      document.getElementById('my_pwToast').textContent = '';
+    });
+    document.getElementById('my_cancelPwBtn').addEventListener('click', function(){
+      document.getElementById('my_changePwForm').style.display = 'none';
+    });
+    document.getElementById('my_savePwBtn').addEventListener('click', async function(){
+      var p1 = document.getElementById('my_newPw1').value;
+      var p2 = document.getElementById('my_newPw2').value;
+      var t = document.getElementById('my_pwToast');
+      if(p1.length < 4){ t.style.color='var(--brick)'; t.textContent = '비밀번호는 4자 이상이어야 해요'; return; }
+      if(p1 !== p2){ t.style.color='var(--brick)'; t.textContent = '두 비밀번호가 서로 달라요'; return; }
+      var idx = employees.findIndex(function(x){ return x.id === currentEmployee.id; });
+      if(idx >= 0){
+        employees[idx] = Object.assign({}, employees[idx], { password: p1 });
+        currentEmployee = employees[idx];
+        await saveEmployees();
+      }
+      t.style.color='var(--pine)';
+      t.textContent = '변경됐어요';
+      setTimeout(function(){
+        document.getElementById('my_changePwForm').style.display = 'none';
+      }, 1000);
+    });
+
+    document.getElementById('my_cancelBtn').addEventListener('click', function(){ openSheet('settingsSheet'); });
+    document.getElementById('my_saveBtn').addEventListener('click', saveMyInfoForm);
+
+    openSheet('myInfoSheet');
+  }
+
+  async function saveMyInfoForm(){
+    var name = document.getElementById('my_name').value.trim();
+    if(!name){
+      document.getElementById('my_name').focus();
+      return;
+    }
+    var idx = employees.findIndex(function(x){ return x.id === editingEmployeeId; });
+    if(idx < 0) return;
+    var updated = Object.assign({}, employees[idx], {
+      name: name,
+      gender: (function(){ var sel = document.querySelector('#my_genderChips .chip.selected'); return sel ? sel.getAttribute('data-gender') : null; })(),
+      birthDate: document.getElementById('my_birthDate').value,
+      company: document.getElementById('my_company').value.trim(),
+      department: document.getElementById('my_department').value.trim(),
+      job: document.getElementById('my_job').value,
+      position: document.getElementById('my_position').value,
+      workLocation: document.getElementById('my_workLocation').value.trim(),
+      annualLeaveDays: (function(){ var v = parseFloat(document.getElementById('my_annualLeaveDays').value); return isNaN(v) ? null : v; })(),
+      awards: currentEmployeeAwards.slice(),
+      certifications: currentEmployeeCertifications.slice(),
+      educations: currentEmployeeEducations.slice()
+    });
+    employees[idx] = updated;
+    await saveEmployees();
+    if(currentEmployee && currentEmployee.id === updated.id){
+      currentEmployee = updated;
+    }
+    applyRoleUI();
+    openSheet('settingsSheet');
   }
 
   // ---------- 개인인사평가 ----------
@@ -5478,6 +5699,8 @@
     ]}
   ];
   var EVAL_B_AREA_ICON = {'성과달성':'🎯','업무역량':'🧠','성실·업무수행':'🏃','조직기여·협업':'🤝','자기계발':'🌱'};
+  // 기본평가 항목 중, 직원의 실제 근태/교육/자격 기록을 참고용으로 보여줄 항목들이에요.
+  var EVAL_B_ITEM_HINT_KEYS = ['selfdev', 'discipline', 'responsibility'];
 
   var EVAL_B_REWARD_ITEMS = [
     {key:'improvement', label:'업무개선', maxPts:5, criteria:'실제 적용되어 비용·시간·품질·위험 중 1개 이상 개선효과가 확인된 경우', evidence:'개선 전/후 자료, 지표', stages:['개선안 제시','개선 실행','정량효과 확인','효과가 명확하고 지속','조직 표준/타 업무로 확산']},
@@ -5598,6 +5821,9 @@
       html += '<div class="rule-card" style="margin-top:8px;">';
       html += '<div style="display:flex;justify-content:space-between;align-items:baseline;"><b>'+escapeHtml(it.label)+'</b><span class="savehint" style="margin:0;">배점 '+it.pts+'</span></div>';
       html += '<p class="savehint" style="margin-top:2px;">'+escapeHtml(it.core)+'</p>';
+      if(EVAL_B_ITEM_HINT_KEYS.indexOf(it.key) !== -1){
+        html += '<p class="savehint evb-item-hint" data-key="'+it.key+'" style="margin-top:2px;color:var(--amber);font-weight:600;"></p>';
+      }
       html += '<div class="chiprow evb-item-chips" data-key="'+it.key+'" style="margin-top:8px;">';
       for(var n=1;n<=5;n++){
         html += '<button class="chip'+(rating===n?' selected':'')+'" data-val="'+n+'" type="button">'+n+'점</button>';
@@ -5634,6 +5860,9 @@
       html += '<p class="savehint" style="margin-top:2px;">'+escapeHtml(it.principle)+'</p>';
       html += '<p class="savehint" style="margin-top:2px;color:var(--ink-faint);">경미 '+it.ranges.minor+' · 보통 '+it.ranges.moderate+' · 중대 '+it.ranges.major+'</p>';
       html += '<p class="savehint" style="margin-top:2px;">필요 증빙: '+escapeHtml(it.evidence)+'</p>';
+      if(it.key === 'attendance'){
+        html += '<p class="savehint evb-penalty-hint" data-key="attendance" style="margin-top:2px;color:var(--amber);font-weight:600;"></p>';
+      }
       html += '<div class="field" style="margin-top:6px;"><span class="field-label">적용 감점 (양수로 입력)</span><input type="number" class="evb-penalty-input" data-key="'+it.key+'" min="0" max="'+it.maxPts+'" step="1" value="'+val+'"></div>';
       html += '</div>';
     });
@@ -5695,6 +5924,21 @@
       gradeEl.style.color = g.color;
     }
 
+    function updateEvalBHintCounts(){
+      var empEl2 = document.getElementById('evb_employee');
+      var empId = (empEl2 && !empEl2.disabled) ? empEl2.value : (e.employeeId || null);
+      var yearEl = document.getElementById('evb_year');
+      var year = parseInt(yearEl && yearEl.value, 10) || new Date().getFullYear();
+      var selfdevHint = document.querySelector('.evb-item-hint[data-key="selfdev"]');
+      if(selfdevHint) selfdevHint.textContent = '참고: 올해 교육 '+countEmployeeEducationsByYear(empId, year)+'건 · 자격증 '+countEmployeeCertificationsByYear(empId, year)+'건';
+      var disciplineHint = document.querySelector('.evb-item-hint[data-key="discipline"]');
+      if(disciplineHint) disciplineHint.textContent = '참고: 올해 근무태만 '+countAttendanceByType(empId, year, '근무태만')+'회 발생';
+      var responsibilityHint = document.querySelector('.evb-item-hint[data-key="responsibility"]');
+      if(responsibilityHint) responsibilityHint.textContent = '참고: 올해 야근 '+countAttendanceByType(empId, year, '야근')+'회';
+      var attendanceHint = document.querySelector('.evb-penalty-hint[data-key="attendance"]');
+      if(attendanceHint) attendanceHint.textContent = '참고: 올해 지각 '+countAttendanceByType(empId, year, '지각')+'회 발생';
+    }
+
     document.querySelectorAll('.evb-item-chips').forEach(function(row){
       var key = row.getAttribute('data-key');
       var item = EVAL_B_ITEMS.find(function(x){ return x.key === key; });
@@ -5726,7 +5970,16 @@
       });
     });
     document.getElementById('evb_excluded').addEventListener('change', refreshTotalsB);
+    var empSelectB = document.getElementById('evb_employee');
+    if(empSelectB && !empSelectB.disabled){
+      empSelectB.addEventListener('change', updateEvalBHintCounts);
+    }
+    var yearInputB = document.getElementById('evb_year');
+    if(yearInputB){
+      yearInputB.addEventListener('input', updateEvalBHintCounts);
+    }
     refreshTotalsB();
+    updateEvalBHintCounts();
 
     document.getElementById('evb_cancelBtn').addEventListener('click', function(){ closeSheet('evaluationFormSheet'); });
     var saveBtnEl = document.getElementById('evb_saveBtn');
@@ -6156,6 +6409,11 @@
     });
   }
 
+  // 직원 관리(관리자용, employeeFormSheet)와 MY정보(본인용, myInfoSheet)가
+  // 상벌/자격증/교육 목록 렌더 함수를 공유해요. 두 화면이 같은 세션에서 모두
+  // 열렸다 닫혔다 할 수 있어서(DOM에 이전 내용이 남아있을 수 있어요), id가
+  // 겹치지 않도록 이 접두사로 어느 화면의 DOM을 가리킬지 구분해요.
+  var empListIdPrefix = 'emp';
   var currentEmployeePhoto = null;
   var currentEmployeeAwards = [];
   var currentEmployeeCertifications = [];
@@ -8515,6 +8773,8 @@
     });
     document.getElementById('logoutBtn').addEventListener('click', logout);
     document.getElementById('appTitle').addEventListener('click', function(){ location.reload(); });
+    document.getElementById('myInfoOpenBtn').addEventListener('click', function(){ openMyInfoForm(); });
+    document.getElementById('myInfoCloseBtn').addEventListener('click', function(){ openSheet('settingsSheet'); });
   }
 
   // ---------- 직원별 로그인 (ver3.0) ----------
@@ -8539,6 +8799,10 @@
         infoBox.style.display = 'none';
       }
     }
+    // 비밀번호 변경은 직원으로 로그인했을 때는 MY정보 화면으로 옮겨졌고,
+    // (실제 관리자 계정으로) 이메일/비밀번호로 로그인했을 때만 설정 화면에 남아있어요.
+    var pwSection = document.getElementById('settingsPwSection');
+    if(pwSection) pwSection.style.display = currentEmployee ? 'none' : '';
   }
 
   async function init(){
