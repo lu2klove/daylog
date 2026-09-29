@@ -1252,6 +1252,13 @@
   </div>
 </div>
 
+<div id="announcementDetailModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:20px;box-sizing:border-box;">
+  <div style="background:var(--paper);border-radius:16px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto;padding:20px;box-sizing:border-box;position:relative;">
+    <button id="announcementDetailCloseBtn" type="button" aria-label="닫기" style="position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;background:var(--paper-raised);color:var(--ink);border:none;font-size:16px;cursor:pointer;">✕</button>
+    <div id="announcementDetailBody"></div>
+  </div>
+</div>
+
 <!-- 출장 등록 -->
 <div class="bottom-sheet" id="tripSheet">
   <div class="sheet-head">
@@ -1429,9 +1436,13 @@
     <button class="cancelbtn" id="employeeOptionsRowBtn" type="button" style="width:100%;text-align:left;">회사명 · 부서명 · 프로젝트 · 직무 · 근무지 · 근무형태 관리 ›</button>
   </div>
 
+  <!-- 공지사항 관리는 보통 MY정보 화면 하단으로 옮겨졌지만, 직원 프로필 없이 이메일·비밀번호로
+       로그인한 관리자 계정은 MY정보 화면 자체에 접근할 수 없어서, 그 경우에만 예외적으로 여기 남겨둬요. -->
+  <div id="settingsAnnouncementSection" style="display:none;">
   <p class="card-title">📢 공지사항</p>
   <div class="ios-list" style="margin-bottom:8px;">
     <button class="cancelbtn" id="announcementRowBtn" type="button" style="width:100%;text-align:left;">공지 등록 · 관리 ›</button>
+  </div>
   </div>
 
   <p class="card-title">🔔 알림설정</p>
@@ -1574,6 +1585,7 @@
   var fontPref = 'default';
   var sizePref = '100';
   var calendarOffset = 0;
+  var CALENDAR_MIN_OFFSET_GENERAL = -2; // 일반 권한: 이번달 포함 최근 3개월까지만 조회 가능
   var selectedDate = null;
   var dayDetailVisible = false;
   var lockResolve = null;
@@ -2314,6 +2326,7 @@
       grid.appendChild(cell);
     }
     document.getElementById('nextMonthBtn').disabled = (calendarOffset >= 0);
+    document.getElementById('prevMonthBtn').disabled = (!isAdminUser() && calendarOffset <= CALENDAR_MIN_OFFSET_GENERAL);
     renderStats();
     renderBackupBanner();
     renderSettlementReminderBanner();
@@ -3335,11 +3348,13 @@
     try{ localStorage.setItem(ANNOUNCEMENT_DISMISS_KEY, JSON.stringify(list)); }catch(e){}
   }
 
+  var ANNOUNCEMENT_BANNER_MAX = 3; // 달력 화면에는 공지를 최대 3개까지만 표시해요.
   function renderAnnouncementBanner(){
     var wrap = document.getElementById('announcementBanner');
     if(!wrap) return;
     var dismissed = getDismissedAnnouncementIds();
-    var visible = activeAnnouncements().filter(function(a){ return a.pinned || dismissed.indexOf(a.id) === -1; });
+    var allVisible = activeAnnouncements().filter(function(a){ return a.pinned || dismissed.indexOf(a.id) === -1; });
+    var visible = allVisible.slice(0, ANNOUNCEMENT_BANNER_MAX);
     if(visible.length === 0){
       wrap.style.display = 'none';
       wrap.innerHTML = '';
@@ -3348,7 +3363,7 @@
     wrap.style.display = 'block';
     var html = '';
     visible.forEach(function(a){
-      html += '<div class="rule-card" style="margin-bottom:8px;background:var(--amber-soft);">';
+      html += '<div class="rule-card" data-announcement-open="'+a.id+'" style="margin-bottom:8px;background:var(--amber-soft);cursor:pointer;">';
       html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">';
       html += '<div>';
       if(a.pinned) html += '<span style="font-size:11px;font-weight:700;color:var(--amber);">📌 고정</span> ';
@@ -3360,16 +3375,92 @@
       }
       html += '</div></div>';
     });
+    if(allVisible.length > visible.length){
+      html += '<p class="savehint" style="margin:-4px 0 8px;">외 '+(allVisible.length - visible.length)+'건의 공지가 더 있어요.</p>';
+    }
     wrap.innerHTML = html;
     wrap.querySelectorAll('[data-announcement-dismiss]').forEach(function(btn){
-      btn.addEventListener('click', function(){
+      btn.addEventListener('click', function(ev){
+        ev.stopPropagation();
         dismissAnnouncement(btn.getAttribute('data-announcement-dismiss'));
         renderAnnouncementBanner();
       });
     });
+    wrap.querySelectorAll('[data-announcement-open]').forEach(function(card){
+      card.addEventListener('click', function(){
+        var a = announcements.find(function(x){ return x.id === card.getAttribute('data-announcement-open'); });
+        if(a) openAnnouncementDetailPopup(a);
+      });
+    });
+  }
+
+  function openAnnouncementDetailPopup(a){
+    var body = document.getElementById('announcementDetailBody');
+    var html = '';
+    if(a.pinned) html += '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;background:var(--amber-soft);color:var(--amber);">📌 고정</span>';
+    html += '<p style="font-weight:700;font-size:17px;margin-top:8px;">'+escapeHtml(a.title||'')+'</p>';
+    var periodLabel = (a.startDate || a.endDate) ? ((a.startDate||'시작 미지정')+' ~ '+(a.endDate||'종료 미지정')) : '상시';
+    html += '<p class="savehint" style="margin-top:4px;">기간: '+escapeHtml(periodLabel)+'</p>';
+    if(a.image){
+      html += '<img src="'+a.image+'" id="an_detailImg" style="width:100%;max-height:220px;object-fit:cover;border-radius:10px;margin-top:12px;cursor:pointer;">';
+    }
+    if(a.content){
+      html += '<p style="font-size:13.5px;white-space:pre-wrap;margin-top:12px;line-height:1.6;">'+escapeHtml(a.content)+'</p>';
+    }
+    if(a.location){
+      html += '<a href="https://map.kakao.com/?q='+encodeURIComponent(a.location)+'" target="_blank" rel="noopener" class="cancelbtn" style="display:block;width:100%;text-align:center;margin-top:12px;text-decoration:none;">📍 '+escapeHtml(a.location)+' 지도에서 보기</a>';
+    }
+    if(a.url){
+      var href = /^https?:\/\//i.test(a.url) ? a.url : ('https://'+a.url);
+      html += '<a href="'+escapeHtml(href)+'" target="_blank" rel="noopener" class="cancelbtn" style="display:block;width:100%;text-align:center;margin-top:8px;text-decoration:none;">🔗 관련 링크 열기</a>';
+    }
+    html += '<button class="savebtn" id="announcementDetailCloseBtn2" type="button" style="width:100%;margin-top:16px;">닫기</button>';
+    body.innerHTML = html;
+    var img = document.getElementById('an_detailImg');
+    if(img) img.addEventListener('click', function(){ openImageViewer(a.image); });
+    document.getElementById('announcementDetailCloseBtn2').addEventListener('click', closeAnnouncementDetailPopup);
+    document.getElementById('announcementDetailModal').style.display = 'flex';
+  }
+  function closeAnnouncementDetailPopup(){
+    document.getElementById('announcementDetailModal').style.display = 'none';
+    document.getElementById('announcementDetailBody').innerHTML = '';
   }
 
   var editingAnnouncementId = null;
+  var announcementScreenReturnTo = 'myInfoSheet'; // 공지사항 화면에서 '뒤로' 눌렀을 때 돌아갈 시트
+  var currentAnnouncementImage = null;
+  function announcementImagePreviewHTML(){
+    if(currentAnnouncementImage){
+      return '<div style="position:relative;display:inline-block;">'+
+        '<img src="'+currentAnnouncementImage+'" style="max-width:100%;max-height:180px;border-radius:10px;border:1px solid var(--line);cursor:pointer;display:block;" id="an_photoThumb">'+
+        '<button type="button" id="an_photoRemoveBtn" style="position:absolute;top:-6px;right:-6px;background:var(--brick);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;line-height:1;">✕</button>'+
+        '</div>';
+    }
+    return '<button type="button" class="cancelbtn" id="an_photoAddBtn" style="width:100%;">📷 이미지 추가</button>';
+  }
+  function refreshAnnouncementImagePreview(){
+    var box = document.getElementById('an_photoPreview');
+    if(!box) return;
+    box.innerHTML = announcementImagePreviewHTML();
+    wireAnnouncementImageButtons();
+  }
+  function wireAnnouncementImageButtons(){
+    var addBtn = document.getElementById('an_photoAddBtn');
+    if(addBtn){
+      addBtn.addEventListener('click', function(){ document.getElementById('an_photoInput').click(); });
+    }
+    var removeBtn = document.getElementById('an_photoRemoveBtn');
+    if(removeBtn){
+      removeBtn.addEventListener('click', function(){
+        currentAnnouncementImage = null;
+        refreshAnnouncementImagePreview();
+      });
+    }
+    var thumb = document.getElementById('an_photoThumb');
+    if(thumb){
+      thumb.addEventListener('click', function(){ openImageViewer(currentAnnouncementImage); });
+    }
+  }
   function renderAnnouncementScreen(){
     var body = document.getElementById('announcementBody');
     var html = '';
@@ -3388,6 +3479,11 @@
         html += '<div>';
         if(a.pinned) html += '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;background:var(--amber-soft);color:var(--amber);">📌 고정</span>';
         html += '<p style="font-weight:700;font-size:14px;margin-top:4px;">'+escapeHtml(a.title||'')+'</p>';
+        var badges = [];
+        if(a.image) badges.push('🖼️ 이미지');
+        if(a.location) badges.push('📍 위치');
+        if(a.url) badges.push('🔗 링크');
+        if(badges.length) html += '<p style="font-size:11px;color:var(--ink-faint);margin-top:2px;">'+badges.join(' · ')+'</p>';
         html += '</div></div>';
         html += '<p class="savehint" style="margin-top:6px;">기간: '+escapeHtml(periodLabel)+'</p>';
         html += '</div>';
@@ -3406,10 +3502,15 @@
   function openAnnouncementForm(existing){
     editingAnnouncementId = existing ? existing.id : null;
     var e = existing || {};
+    currentAnnouncementImage = e.image || null;
     var body = document.getElementById('announcementFormBody');
     var html = '';
     html += '<div class="field"><span class="field-label field-label-strong">제목</span><input type="text" id="an_title" placeholder="예: 9월 정기 회식 안내" value="'+escapeHtml(e.title||'')+'"></div>';
     html += '<div class="field"><span class="field-label">내용</span><textarea id="an_content" placeholder="선택 입력" rows="4">'+escapeHtml(e.content||'')+'</textarea></div>';
+    html += '<div class="field"><span class="field-label">🖼️ 이미지</span><div id="an_photoPreview">'+announcementImagePreviewHTML()+'</div>';
+    html += '<input type="file" accept="image/*" id="an_photoInput" style="display:none;"></div>';
+    html += locationSearchFieldHTML('📍 위치', 'an_location', 'an_locationSearchBtn', 'an_locationResults', e.location, '예: 강남역 회의실');
+    html += '<div class="field"><span class="field-label">🔗 관련 링크(URL)</span><input type="url" id="an_url" placeholder="https://..." value="'+escapeHtml(e.url||'')+'"></div>';
     html += '<div class="field"><span class="field-label">📌 고정</span><div class="chiprow" id="an_pinnedChips">';
     html += '<button class="chip'+(e.pinned?' selected':'')+'" data-pinned="1" type="button">고정</button>';
     html += '<button class="chip'+(!e.pinned?' selected':'')+'" data-pinned="0" type="button">고정 안 함</button>';
@@ -3421,6 +3522,16 @@
       html += '<button class="danger" id="an_deleteBtn" type="button" style="width:100%;margin-top:10px;">이 공지 삭제</button>';
     }
     body.innerHTML = html;
+    wireAnnouncementImageButtons();
+    document.getElementById('an_photoInput').addEventListener('change', function(ev){
+      var file = ev.target.files[0];
+      if(!file) return;
+      compressImageToDataURL(file, function(dataUrl){
+        currentAnnouncementImage = dataUrl;
+        refreshAnnouncementImagePreview();
+      }, 800);
+    });
+    wireLocationSearch('an_location', 'an_locationSearchBtn', 'an_locationResults');
     document.querySelectorAll('#an_pinnedChips .chip').forEach(function(c){
       c.addEventListener('click', function(){
         document.querySelectorAll('#an_pinnedChips .chip').forEach(function(x){ x.classList.remove('selected'); });
@@ -3455,6 +3566,9 @@
       id: editingAnnouncementId || uid(),
       title: title,
       content: document.getElementById('an_content').value.trim(),
+      image: currentAnnouncementImage || null,
+      location: document.getElementById('an_location').value.trim(),
+      url: document.getElementById('an_url').value.trim(),
       pinned: pinnedChip ? pinnedChip.getAttribute('data-pinned') === '1' : false,
       startDate: document.getElementById('an_startDate').value,
       endDate: document.getElementById('an_endDate').value,
@@ -5179,6 +5293,13 @@
     html += '<button class="savebtn" id="my_saveBtn" type="button">저장</button>';
     html += '</div>';
 
+    // 공지사항 등록·관리는 관리자 권한만 볼 수 있어요 (설정 > 공지사항에서 이 화면 하단으로 옮겨왔어요).
+    if(isAdminUser()){
+      html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
+      html += '<p class="card-title" style="margin-top:0;">📢 공지사항</p>';
+      html += '<button class="cancelbtn" id="my_announcementRowBtn" type="button" style="width:100%;text-align:left;">공지 등록 · 관리 ›</button>';
+    }
+
     body.innerHTML = html;
 
     function wireSingleSelectChips(containerId){
@@ -5241,6 +5362,15 @@
 
     document.getElementById('my_cancelBtn').addEventListener('click', function(){ openSheet('settingsSheet'); });
     document.getElementById('my_saveBtn').addEventListener('click', saveMyInfoForm);
+    var myAnnBtn = document.getElementById('my_announcementRowBtn');
+    if(myAnnBtn){
+      myAnnBtn.addEventListener('click', function(){
+        announcementScreenReturnTo = 'myInfoSheet';
+        closeSheet('myInfoSheet');
+        renderAnnouncementScreen();
+        document.getElementById('announcementScreen').classList.add('open');
+      });
+    }
 
     openSheet('myInfoSheet');
   }
@@ -6752,6 +6882,13 @@
   function renderSettlementReminderBanner(){
     var banner = document.getElementById('settlementReminderBanner');
     if(!banner) return;
+    // 정산 처리는 관리자 업무라, 일반 권한 직원에게는 이 알림을 보여주지 않아요.
+    if(!isAdminUser()){
+      banner.style.display = 'none';
+      document.getElementById('settlementReminderList').style.display = 'none';
+      settlementListOpen = false;
+      return;
+    }
     var unsettled = getUnsettledEntries();
     if(notifSettings.settlement === false || unsettled.length === 0){
       banner.style.display = 'none';
@@ -7613,8 +7750,14 @@
     html += '</div><p class="toast" id="at_rangeError"></p></div>';
 
     html += '<div class="field"><span class="field-label field-label-strong">👤 직원명</span>';
+    // 일반 권한 직원은 본인 이름 근무기록만 등록할 수 있어서, 선택지를 본인으로 고정해요.
+    var lockToSelf = !isAdminUser() && currentEmployee;
     if(employees.length === 0){
       html += '<select id="at_employee" disabled><option>등록된 직원이 없어요 (인사관리 &gt; ⚙️에서 등록)</option></select>';
+    }else if(lockToSelf){
+      var selfEmp = employees.find(function(emp){ return emp.id === currentEmployee.id; }) || currentEmployee;
+      html += '<select id="at_employee"><option value="'+selfEmp.id+'" selected>'+escapeHtml(selfEmp.name)+'</option></select>';
+      html += '<p class="savehint" style="margin-top:2px;">일반 권한은 본인 이름으로만 등록할 수 있어요.</p>';
     }else{
       html += '<select id="at_employee">';
       employees.forEach(function(emp){
@@ -8022,15 +8165,19 @@
     for(var m=0; m<12; m++){
       var cell = document.createElement('div');
       var isFuture = (pickerYear > now.getFullYear()) || (pickerYear === now.getFullYear() && m > now.getMonth());
+      // 일반 권한 직원은 달력 월 선택에서도 최근 3개월(이번달 포함)까지만 고를 수 있어요.
+      var cellOffset = (pickerYear - now.getFullYear())*12 + (m - now.getMonth());
+      var isTooOld = (datePickerMode === 'calendar' && !isAdminUser() && cellOffset < CALENDAR_MIN_OFFSET_GENERAL);
+      var isDisabledCell = isFuture || isTooOld;
       var cls = ['month-cell'];
-      if(isFuture) cls.push('future');
+      if(isDisabledCell) cls.push('future');
       var isActiveYear = (datePickerMode === 'stats' || datePickerMode === 'hrmonth')
         ? (pickerYear === statsSpecificYear)
         : (pickerYear === (new Date(now.getFullYear(), now.getMonth()+calendarOffset,1)).getFullYear());
       if(activeMonth === m && isActiveYear) cls.push('active');
       cell.className = cls.join(' ');
       cell.textContent = (m+1)+'월';
-      if(!isFuture){
+      if(!isDisabledCell){
         cell.addEventListener('click', function(mm){
           return function(){
             if(datePickerMode === 'stats'){
@@ -9179,6 +9326,10 @@
     document.getElementById('imageViewerModal').addEventListener('click', function(ev){
       if(ev.target.id === 'imageViewerModal') closeImageViewer();
     });
+    document.getElementById('announcementDetailCloseBtn').addEventListener('click', closeAnnouncementDetailPopup);
+    document.getElementById('announcementDetailModal').addEventListener('click', function(ev){
+      if(ev.target.id === 'announcementDetailModal') closeAnnouncementDetailPopup();
+    });
     document.getElementById('tripCloseBtn').addEventListener('click', function(){ closeSheet('tripSheet'); });
     document.getElementById('expenseCloseBtn').addEventListener('click', function(){ closeSheet('expenseSheet'); });
     document.getElementById('overtimeCloseBtn').addEventListener('click', function(){ closeSheet('overtimeSheet'); });
@@ -9215,8 +9366,10 @@
       openSheet('settingsSheet');
     });
 
-    document.getElementById('monthLabelBtn').addEventListener('click', openDatePicker);
+    document.getElementById('monthLabelBtn').addEventListener('click', function(){ openDatePicker('calendar'); });
     document.getElementById('prevMonthBtn').addEventListener('click', function(){
+      // 일반 권한 직원은 최근 3개월(이번달 포함)까지만 조회할 수 있어요.
+      if(!isAdminUser() && calendarOffset <= CALENDAR_MIN_OFFSET_GENERAL) return;
       calendarOffset -= 1;
       selectedDate = null;
       renderCalendar();
@@ -9298,14 +9451,15 @@
       document.getElementById('employeeOptionsScreen').classList.remove('open');
       openSheet('settingsSheet');
     });
+    document.getElementById('announcementBackBtn').addEventListener('click', function(){
+      document.getElementById('announcementScreen').classList.remove('open');
+      openSheet(announcementScreenReturnTo);
+    });
     document.getElementById('announcementRowBtn').addEventListener('click', function(){
+      announcementScreenReturnTo = 'settingsSheet';
       closeSheet('settingsSheet');
       renderAnnouncementScreen();
       document.getElementById('announcementScreen').classList.add('open');
-    });
-    document.getElementById('announcementBackBtn').addEventListener('click', function(){
-      document.getElementById('announcementScreen').classList.remove('open');
-      openSheet('settingsSheet');
     });
     document.getElementById('announcementFormCloseBtn').addEventListener('click', function(){ closeSheet('announcementFormSheet'); });
     document.getElementById('employeeFormCloseBtn').addEventListener('click', function(){ closeSheet('employeeFormSheet'); });
@@ -9466,6 +9620,11 @@
     // (실제 관리자 계정으로) 이메일/비밀번호로 로그인했을 때만 설정 화면에 남아있어요.
     var pwSection = document.getElementById('settingsPwSection');
     if(pwSection) pwSection.style.display = currentEmployee ? 'none' : '';
+    // 공지사항도 마찬가지로 직원 로그인 시에는 MY정보 화면 하단으로 옮겨졌고,
+    // 직원 프로필 없이 이메일/비밀번호로 로그인한 관리자 계정은 MY정보에 접근할 수
+    // 없으므로 그 경우에만 설정 화면에 예외적으로 남겨둬요.
+    var annSection = document.getElementById('settingsAnnouncementSection');
+    if(annSection) annSection.style.display = (admin && !currentEmployee) ? '' : 'none';
   }
 
   async function init(){
