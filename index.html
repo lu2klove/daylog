@@ -280,6 +280,7 @@
   .cell.empty{ border:none; background:none; cursor:default; }
   .cell.sun{ color:var(--brick); }
   .cell.sat{ color:var(--blue); }
+  .cell.holiday{ color:var(--brick) !important; font-weight:700; }
   .cell.today{ color:var(--brick) !important; font-weight:700; }
   .cell.has-entries{ background:var(--pine-soft); border-color:var(--pine); font-weight:600; }
   .cell.selected{ outline:2px solid var(--brick); outline-offset:-2px; }
@@ -921,46 +922,46 @@
 
 <div class="lockscreen" id="lockScreen">
   <div class="lockcard">
-    <div id="setupView" style="display:none;">
-      <p class="eyebrow">WORK JOURNAL · V3.0</p>
-      <h1 style="margin-bottom:18px;">💼 업무일지</h1>
-      <p class="subtitle">계정을 만들어주세요</p>
-      <input type="email" id="setupEmail" placeholder="이메일" autocomplete="email">
-      <input type="password" id="setupPw1" placeholder="비밀번호 (6자 이상)" autocomplete="new-password">
-      <input type="password" id="setupPw2" placeholder="비밀번호 확인" autocomplete="new-password">
-      <button class="savebtn" id="setupBtn" type="button">계정 만들고 시작</button>
-      <p class="toast" id="setupErr" style="color:var(--brick);"></p>
-      <p class="savehint">이 계정으로 PC·모바일 어디서든 같은 기록을 볼 수 있어요</p>
-      <button class="toggle-link" id="goToLoginBtn" type="button">이미 계정이 있어요</button>
-    </div>
-    <div id="loginView" style="display:none;">
-      <p class="eyebrow">WORK JOURNAL · V3.0</p>
-      <h1 style="margin-bottom:18px;">💼 업무일지</h1>
-      <p class="subtitle">로그인해주세요</p>
-      <input type="email" id="loginEmail" placeholder="이메일" autocomplete="email">
-      <input type="password" id="loginPw" placeholder="비밀번호" autocomplete="current-password">
-      <button class="savebtn" id="loginBtn" type="button">로그인</button>
-      <p class="toast" id="loginErr" style="color:var(--brick);"></p>
-      <button class="toggle-link" id="forgotBtn" type="button">비밀번호를 잊으셨나요?</button>
-      <div id="forgotConfirm" style="display:none;margin-top:10px;">
-        <p class="toast">가입하신 이메일로 비밀번호 재설정 링크를 보내드려요.</p>
-        <button class="cancelbtn" id="forgotConfirmBtn" type="button" style="width:100%;">재설정 메일 보내기</button>
-      </div>
-      <button class="toggle-link" id="goToSetupBtn" type="button">계정이 없으신가요? 만들기</button>
-    </div>
-  </div>
-</div>
-
-<div class="lockscreen" id="empLockScreen" style="display:none;">
-  <div class="lockcard">
     <p class="eyebrow">WORK JOURNAL · V3.0</p>
-    <h1 style="margin-bottom:18px;">👤 직원 로그인</h1>
-    <p class="subtitle">이름을 선택하고 비밀번호를 입력해주세요</p>
-    <div class="chiprow" id="empLoginNameList" style="margin-bottom:14px;flex-wrap:wrap;"></div>
-    <input type="hidden" id="empLoginSelectedId" value="">
-    <input type="password" id="empLoginPw" placeholder="비밀번호 (설정한 적이 없다면 비워두세요)" autocomplete="current-password">
-    <button class="savebtn" id="empLoginBtn" type="button">로그인</button>
-    <p class="toast" id="empLoginErr" style="color:var(--brick);"></p>
+    <h1 style="margin-bottom:18px;">💼 업무일지</h1>
+    <p class="subtitle">로그인해주세요</p>
+    <div class="chiprow" id="loginRoleChips" style="margin-bottom:18px;">
+      <button class="chip" data-role="employee" type="button">직원</button>
+      <button class="chip" data-role="admin" type="button">관리자</button>
+    </div>
+
+    <div id="employeeLoginMode">
+      <select id="empLoginSelect" style="margin-bottom:12px;">
+        <option value="">이름을 선택하세요</option>
+      </select>
+      <input type="password" id="empLoginPw" placeholder="비밀번호 (설정한 적이 없다면 비워두세요)" autocomplete="current-password">
+      <button class="savebtn" id="empLoginBtn" type="button">로그인</button>
+      <p class="toast" id="empLoginErr" style="color:var(--brick);"></p>
+    </div>
+
+    <div id="adminLoginMode" style="display:none;">
+      <div id="setupView" style="display:none;">
+        <input type="email" id="setupEmail" placeholder="이메일" autocomplete="email">
+        <input type="password" id="setupPw1" placeholder="비밀번호 (6자 이상)" autocomplete="new-password">
+        <input type="password" id="setupPw2" placeholder="비밀번호 확인" autocomplete="new-password">
+        <button class="savebtn" id="setupBtn" type="button">계정 만들고 시작</button>
+        <p class="toast" id="setupErr" style="color:var(--brick);"></p>
+        <p class="savehint">이 계정으로 PC·모바일 어디서든 같은 기록을 볼 수 있어요</p>
+        <button class="toggle-link" id="goToLoginBtn" type="button">이미 계정이 있어요</button>
+      </div>
+      <div id="loginView" style="display:none;">
+        <input type="email" id="loginEmail" placeholder="이메일" autocomplete="email">
+        <input type="password" id="loginPw" placeholder="비밀번호" autocomplete="current-password">
+        <button class="savebtn" id="loginBtn" type="button">로그인</button>
+        <p class="toast" id="loginErr" style="color:var(--brick);"></p>
+        <button class="toggle-link" id="forgotBtn" type="button">비밀번호를 잊으셨나요?</button>
+        <div id="forgotConfirm" style="display:none;margin-top:10px;">
+          <p class="toast">가입하신 이메일로 비밀번호 재설정 링크를 보내드려요.</p>
+          <button class="cancelbtn" id="forgotConfirmBtn" type="button" style="width:100%;">재설정 메일 보내기</button>
+        </div>
+        <button class="toggle-link" id="goToSetupBtn" type="button">계정이 없으신가요? 만들기</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1280,9 +1281,8 @@
     <button class="sheet-close" id="settingsCloseBtn" type="button">✕</button>
   </div>
 
-  <div id="currentEmployeeInfo" style="display:none;background:var(--paper-raised);border-radius:10px;padding:10px 14px;margin-bottom:16px;align-items:center;justify-content:space-between;gap:8px;">
+  <div id="currentEmployeeInfo" style="display:none;background:var(--paper-raised);border-radius:10px;padding:10px 14px;margin-bottom:16px;align-items:center;gap:8px;">
     <span id="currentEmployeeInfoText" style="font-size:12.5px;font-weight:600;"></span>
-    <button class="cancelbtn" id="switchEmployeeBtn" type="button" style="padding:6px 10px;font-size:11.5px;white-space:nowrap;">🔁 전환</button>
   </div>
 
   <p class="card-title no-divider">🌓 테마</p>
@@ -1690,11 +1690,46 @@
   var SUPABASE_URL = 'https://vrvcbyovybovokfynpdl.supabase.co';
   var SUPABASE_ANON_KEY = 'sb_publishable_LQyZoHNRlMkJAXiIlfBrhw_G8aL_YoH';
   var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // 직원 로그인 화면에서 직원 목록을 불러오기 위해 앱이 내부적으로 자동 로그인할 때 쓰는
+  // "관리자" 계정 정보예요. 직원은 이 정보를 몰라도 되고, 화면에도 표시되지 않아요.
+  // 배포 전에 반드시 실제 관리자 이메일/비밀번호로 바꿔주세요.
+  var EMPLOYEE_AUTO_LOGIN_EMAIL = 'REPLACE_WITH_ADMIN_EMAIL';
+  var EMPLOYEE_AUTO_LOGIN_PASSWORD = 'REPLACE_WITH_ADMIN_PASSWORD';
+
+  var EMP_SESSION_LOCAL_KEY = 'work_journal_currentEmployee_v1';
+  var LOGIN_MODE_LOCAL_KEY = 'work_journal_loginmode_v1';
+  var currentEmployee = null;
+  var loginMode = null; // 'admin' | 'employee'
+  var employeeDropdownLoaded = false;
+
+  function isAdminUser(){
+    if(loginMode === 'admin') return true;
+    return !!(currentEmployee && currentEmployee.role === '관리자');
+  }
+
+  // 본인이 등록하지 않은 업무/근무기록은 읽기 전용 (수정/삭제 불가)
+  function canEditEntry(e){
+    if(isAdminUser()) return true;
+    if(!currentEmployee) return true;
+    if(e.type !== 'task' && e.type !== 'attendance') return true;
+    // employeeId가 없으면(직원별 로그인 도입 전 기록) 본인이 등록한 게 아니므로 읽기 전용
+    return e.employeeId === currentEmployee.id;
+  }
 
   function unlockApp(){
     document.getElementById('lockScreen').style.display = 'none';
     document.getElementById('mainApp').style.display = 'block';
-    if(lockResolve){ lockResolve(); lockResolve = null; }
+    if(lockResolve){
+      // 최초 부팅 중 첫 로그인: init()이 데이터 로딩을 마친 뒤 알아서
+      // applyRoleUI/renderCalendar를 호출하므로 여기서는 잠금만 풀어줌
+      lockResolve(); lockResolve = null;
+    }else{
+      // 로그아웃 후 재로그인: init()의 후속 로직이 다시 실행되지 않으므로
+      // 여기서 직접 권한 UI와 화면을 새로고침해줘야 함
+      applyRoleUI();
+      renderCalendar();
+      renderDayDetail();
+    }
   }
   function showSetupView(){
     document.getElementById('setupView').style.display = 'block';
@@ -1703,6 +1738,70 @@
   function showLoginView(){
     document.getElementById('setupView').style.display = 'none';
     document.getElementById('loginView').style.display = 'block';
+  }
+  function setLoginUIMode(mode){
+    document.querySelectorAll('#loginRoleChips .chip').forEach(function(c){
+      c.classList.toggle('selected', c.getAttribute('data-role') === mode);
+    });
+    document.getElementById('employeeLoginMode').style.display = (mode === 'employee') ? 'block' : 'none';
+    document.getElementById('adminLoginMode').style.display = (mode === 'admin') ? 'block' : 'none';
+    if(mode === 'employee'){
+      ensureEmployeeDropdownLoaded();
+    }
+  }
+  async function ensureEmployeeDropdownLoaded(){
+    if(employeeDropdownLoaded) return;
+    var sel = document.getElementById('empLoginSelect');
+    var err = document.getElementById('empLoginErr');
+    err.textContent = '';
+    sel.innerHTML = '<option value="">불러오는 중…</option>';
+    sel.disabled = true;
+    try{
+      var signInRes = await supabaseClient.auth.signInWithPassword({ email: EMPLOYEE_AUTO_LOGIN_EMAIL, password: EMPLOYEE_AUTO_LOGIN_PASSWORD });
+      if(signInRes.error){
+        sel.innerHTML = '<option value="">직원 목록을 불러올 수 없어요</option>';
+        err.textContent = '시스템 준비가 안 됐어요. 관리자에게 문의해주세요.';
+        return;
+      }
+      var uid = await getCurrentUserId();
+      var res = await supabaseClient.from('employees').select('*').eq('user_id', uid);
+      var emps = (!res.error && res.data) ? res.data.map(employeeRowToObject) : [];
+      emps = emps.filter(function(e){ return !e.resignDate; }).sort(function(a,b){
+        return stripEmojiForCompare(a.name||'').localeCompare(stripEmojiForCompare(b.name||''), 'ko');
+      });
+      employees = emps;
+      if(emps.length === 0){
+        sel.innerHTML = '<option value="">등록된 직원이 없어요</option>';
+      }else{
+        var optHtml = '<option value="">이름을 선택하세요</option>';
+        emps.forEach(function(e){ optHtml += '<option value="'+e.id+'">'+escapeHtml(e.name)+'</option>'; });
+        sel.innerHTML = optHtml;
+        sel.disabled = false;
+      }
+      employeeDropdownLoaded = true;
+    }catch(e){
+      sel.innerHTML = '<option value="">직원 목록을 불러올 수 없어요</option>';
+      err.textContent = '오류가 발생했어요. 다시 시도해주세요.';
+    }
+  }
+  async function attemptEmployeeLogin(){
+    var id = document.getElementById('empLoginSelect').value;
+    var pw = document.getElementById('empLoginPw').value;
+    var err = document.getElementById('empLoginErr');
+    err.textContent = '';
+    if(!employeeDropdownLoaded){ err.textContent = '직원 목록을 불러오는 중이에요. 잠시 후 다시 시도해주세요'; return; }
+    if(!id){ err.textContent = '이름을 선택해주세요'; return; }
+    var emp = employees.find(function(x){ return x.id === id; });
+    if(!emp){ err.textContent = '직원 정보를 찾을 수 없어요'; return; }
+    if((emp.password||'') !== pw){ err.textContent = '비밀번호가 틀렸어요'; return; }
+    currentEmployee = emp;
+    loginMode = 'employee';
+    try{
+      localStorage.setItem(EMP_SESSION_LOCAL_KEY, id);
+      localStorage.setItem(LOGIN_MODE_LOCAL_KEY, 'employee');
+    }catch(e){}
+    document.getElementById('empLoginPw').value = '';
+    unlockApp();
   }
   async function attemptLogin(){
     var email = document.getElementById('loginEmail').value.trim();
@@ -1716,6 +1815,12 @@
       err.textContent = (res.error.message === 'Invalid login credentials') ? '이메일 또는 비밀번호가 틀렸어요' : res.error.message;
       return;
     }
+    loginMode = 'admin';
+    currentEmployee = null;
+    try{
+      localStorage.removeItem(EMP_SESSION_LOCAL_KEY);
+      localStorage.setItem(LOGIN_MODE_LOCAL_KEY, 'admin');
+    }catch(e){}
     unlockApp();
   }
   async function doSetupSubmit(){
@@ -1734,6 +1839,12 @@
       return;
     }
     if(res.data.session){
+      loginMode = 'admin';
+      currentEmployee = null;
+      try{
+        localStorage.removeItem(EMP_SESSION_LOCAL_KEY);
+        localStorage.setItem(LOGIN_MODE_LOCAL_KEY, 'admin');
+      }catch(e){}
       unlockApp();
     }else{
       err.style.color = 'var(--pine)';
@@ -1741,7 +1852,15 @@
     }
   }
   function wireLoginHandlers(){
+    setLoginUIMode('employee');
     showLoginView();
+    document.querySelectorAll('#loginRoleChips .chip').forEach(function(c){
+      c.onclick = function(){ setLoginUIMode(c.getAttribute('data-role')); };
+    });
+    document.getElementById('empLoginBtn').onclick = attemptEmployeeLogin;
+    document.getElementById('empLoginPw').onkeydown = function(ev){
+      if(ev.key === 'Enter') attemptEmployeeLogin();
+    };
     document.getElementById('loginBtn').onclick = attemptLogin;
     document.getElementById('loginPw').onkeydown = function(ev){
       if(ev.key === 'Enter') attemptLogin();
@@ -1767,13 +1886,18 @@
   async function logout(){
     await supabaseClient.auth.signOut();
     currentEmployee = null;
-    isBootstrapAdmin = false;
-    try{ localStorage.removeItem(EMP_SESSION_LOCAL_KEY); }catch(e){}
-    document.getElementById('empLockScreen').style.display = 'none';
+    loginMode = null;
+    employeeDropdownLoaded = false;
+    try{
+      localStorage.removeItem(EMP_SESSION_LOCAL_KEY);
+      localStorage.removeItem(LOGIN_MODE_LOCAL_KEY);
+    }catch(e){}
     wireLoginHandlers();
     document.getElementById('loginEmail').value = '';
     document.getElementById('loginPw').value = '';
     document.getElementById('loginErr').textContent = '';
+    document.getElementById('empLoginPw').value = '';
+    document.getElementById('empLoginErr').textContent = '';
     document.getElementById('forgotConfirm').style.display = 'none';
     closeAllSheets();
     document.getElementById('mainApp').style.display = 'none';
@@ -1782,14 +1906,49 @@
   function initLock(){
     return new Promise(function(resolve){
       lockResolve = resolve;
-      supabaseClient.auth.getSession().then(function(res){
+      supabaseClient.auth.getSession().then(async function(res){
         if(res.data && res.data.session){
-          unlockApp();
+          var storedMode = null;
+          try{ storedMode = localStorage.getItem(LOGIN_MODE_LOCAL_KEY); }catch(e){}
+          if(storedMode === 'employee'){
+            var storedEmpId = null;
+            try{ storedEmpId = localStorage.getItem(EMP_SESSION_LOCAL_KEY); }catch(e){}
+            if(storedEmpId){
+              try{
+                var uid = await getCurrentUserId();
+                var empRes = await supabaseClient.from('employees').select('*').eq('user_id', uid);
+                var emps = (!empRes.error && empRes.data) ? empRes.data.map(employeeRowToObject) : [];
+                var found = emps.find(function(x){ return x.id === storedEmpId; });
+                if(found){
+                  employees = emps;
+                  employeeDropdownLoaded = true;
+                  currentEmployee = found;
+                  loginMode = 'employee';
+                  unlockApp();
+                  return;
+                }
+              }catch(e){}
+            }
+            // 저장된 직원 정보를 확인할 수 없으면 안전하게 다시 로그인하도록 함
+            try{
+              localStorage.removeItem(EMP_SESSION_LOCAL_KEY);
+              localStorage.removeItem(LOGIN_MODE_LOCAL_KEY);
+            }catch(e){}
+            await supabaseClient.auth.signOut();
+            wireLoginHandlers();
+            return;
+          }
+          if(storedMode === 'admin'){
+            loginMode = 'admin';
+            currentEmployee = null;
+            unlockApp();
+            return;
+          }
+          // 이 기기에서 명시적으로 로그인을 마친 기록이 없는 세션은 신뢰하지 않음
+          await supabaseClient.auth.signOut();
+          wireLoginHandlers();
         }else{
           wireLoginHandlers();
-          document.getElementById('goToLoginBtn').onclick = function(){
-            wireLoginHandlers();
-          };
         }
       });
     });
@@ -1857,6 +2016,80 @@
     }
     renderBudgetWarningBanner(expenseAmt);
   }
+
+  // ---------- 대한민국 법정공휴일 (2025~2027) ----------
+  // 여러 자료(namu.wiki, holiday.kimgoon.kr 등)를 교차 확인해 정리했어요.
+  // 2026년부터 제헌절·근로자의날이 공휴일로 새로 지정되고, 제헌절·성탄절도
+  // 대체공휴일 대상에 포함돼요. 설날/추석처럼 음력 기준 날짜는 매년 바뀌므로
+  // 2028년 이후 날짜는 이 표에 없고, 필요하면 추가해주시면 돼요.
+  var KR_HOLIDAYS = {
+    '2025-01-01': '신정',
+    '2025-01-28': '설날 연휴',
+    '2025-01-29': '설날',
+    '2025-01-30': '설날 연휴',
+    '2025-03-01': '삼일절',
+    '2025-03-03': '대체공휴일(삼일절)',
+    '2025-05-05': '어린이날·부처님오신날',
+    '2025-05-06': '대체공휴일',
+    '2025-06-06': '현충일',
+    '2025-08-15': '광복절',
+    '2025-10-03': '개천절',
+    '2025-10-05': '추석 연휴',
+    '2025-10-06': '추석',
+    '2025-10-07': '추석 연휴',
+    '2025-10-08': '대체공휴일(추석)',
+    '2025-10-09': '한글날',
+    '2025-12-25': '성탄절',
+
+    '2026-01-01': '신정',
+    '2026-02-16': '설날 연휴',
+    '2026-02-17': '설날',
+    '2026-02-18': '설날 연휴',
+    '2026-03-01': '삼일절',
+    '2026-03-02': '대체공휴일(삼일절)',
+    '2026-05-01': '근로자의날',
+    '2026-05-05': '어린이날',
+    '2026-05-24': '부처님오신날',
+    '2026-05-25': '대체공휴일(부처님오신날)',
+    '2026-06-06': '현충일',
+    '2026-07-17': '제헌절',
+    '2026-08-15': '광복절',
+    '2026-08-17': '대체공휴일(광복절)',
+    '2026-09-24': '추석 연휴',
+    '2026-09-25': '추석',
+    '2026-09-26': '추석 연휴',
+    '2026-09-28': '대체공휴일(추석)',
+    '2026-10-03': '개천절',
+    '2026-10-05': '대체공휴일(개천절)',
+    '2026-10-09': '한글날',
+    '2026-12-25': '성탄절',
+
+    '2027-01-01': '신정',
+    '2027-02-06': '설날 연휴',
+    '2027-02-07': '설날',
+    '2027-02-08': '설날 연휴',
+    '2027-02-09': '대체공휴일(설날)',
+    '2027-03-01': '삼일절',
+    '2027-05-01': '근로자의날',
+    '2027-05-03': '대체공휴일(근로자의날)',
+    '2027-05-05': '어린이날',
+    '2027-05-13': '부처님오신날',
+    '2027-06-06': '현충일',
+    '2027-07-17': '제헌절',
+    '2027-07-19': '대체공휴일(제헌절)',
+    '2027-08-15': '광복절',
+    '2027-08-16': '대체공휴일(광복절)',
+    '2027-09-14': '추석 연휴',
+    '2027-09-15': '추석',
+    '2027-09-16': '추석 연휴',
+    '2027-10-03': '개천절',
+    '2027-10-04': '대체공휴일(개천절)',
+    '2027-10-09': '한글날',
+    '2027-10-11': '대체공휴일(한글날)',
+    '2027-12-25': '성탄절',
+    '2027-12-27': '대체공휴일(성탄절)'
+  };
+
   function renderCalendar(){
     var now = new Date();
     var displayDate = new Date(now.getFullYear(), now.getMonth() + calendarOffset, 1);
@@ -1881,6 +2114,8 @@
       var classes = ['cell'];
       if(dow === 0) classes.push('sun');
       if(dow === 6) classes.push('sat');
+      var holidayName = KR_HOLIDAYS[dateStr];
+      if(holidayName) classes.push('holiday');
       if(dateStr === todayString) classes.push('today');
       var dayEntriesAll = entriesForDate(dateStr);
       var dayEntries = isAdminUser() ? dayEntriesAll : dayEntriesAll.filter(function(e){ return e.type === 'task' || e.type === 'attendance'; });
@@ -1888,6 +2123,7 @@
       if(dateStr === selectedDate) classes.push('selected');
       cell.className = classes.join(' ');
       cell.setAttribute('data-date', dateStr);
+      if(holidayName) cell.title = holidayName;
       cell.textContent = d;
 
       var hasUnsettledTrip = isAdminUser() && dayEntriesAll.some(function(e){
@@ -1993,6 +2229,9 @@
     var html = '';
     html += '<div class="day-detail-head">';
     html += '<span class="day-detail-date">'+niceDate(selectedDate)+'</span>';
+    if(KR_HOLIDAYS[selectedDate]){
+      html += '<span style="color:var(--brick);font-weight:600;font-size:12.5px;margin-left:6px;">🎌 '+escapeHtml(KR_HOLIDAYS[selectedDate])+'</span>';
+    }
     html += '</div>';
     html += '<div class="tagbtn-row">';
     if(isAdminUser()){
@@ -2039,7 +2278,9 @@
           html += '<img src="'+e.receiptImage+'" class="receipt-thumb-small" data-receipt-view="'+e.id+'" style="max-width:60px;max-height:60px;border-radius:6px;border:1px solid var(--line);margin-top:6px;cursor:pointer;display:block;">';
         }
         html += '<div class="record-actions">';
-        if(isConfirming){
+        if(!canEditEntry(e)){
+          html += '<span style="font-size:12px;color:var(--ink-soft);">🔒 다른 직원의 기록이라 읽기만 가능해요</span>';
+        }else if(isConfirming){
           html += '<span style="font-size:12.5px;color:var(--brick);">정말 삭제할까요?</span>';
           html += '<button class="danger" data-confirmdel="'+e.id+'" type="button">삭제</button>';
           html += '<button class="cancelbtn" data-canceldel="'+e.id+'" type="button" style="padding:6px 12px;font-size:12.5px;">취소</button>';
@@ -5992,6 +6233,7 @@
       return;
     }
     var now = new Date().toISOString();
+    var existingTaskEntry = editingTaskId ? entries.find(function(x){return x.id===editingTaskId;}) : null;
     var payload = {
       id: editingTaskId || uid(),
       type: 'task',
@@ -6000,7 +6242,8 @@
       important: document.getElementById('tk_important').checked,
       hasSpecialNote: document.getElementById('tk_hasSpecialNote').checked,
       specialNote: document.getElementById('tk_specialNote').value.trim(),
-      createdAt: editingTaskId ? (entries.find(function(x){return x.id===editingTaskId;})||{}).createdAt || now : now,
+      employeeId: existingTaskEntry ? existingTaskEntry.employeeId : (currentEmployee ? currentEmployee.id : null),
+      createdAt: existingTaskEntry ? existingTaskEntry.createdAt || now : now,
       updatedAt: now
     };
     if(editingTaskId){
@@ -6727,8 +6970,12 @@
 
   function statsFilteredEntries(){
     var range = getPeriodRange(statsPeriodMode);
+    var admin = isAdminUser();
     return entries.filter(function(e){
-      if(e.type === 'attendance') return false;
+      // 근무기록은 '유형'에서 명시적으로 선택했을 때만 목록에 포함
+      if(e.type === 'attendance' && statsTypeMode !== 'attendance') return false;
+      // 일반 권한은 출장/경비/야근/복지비 기록을 통계에서 볼 수 없음
+      if(!admin && (e.type === 'trip' || e.type === 'expense' || e.type === 'overtime' || e.type === 'welfare')) return false;
       if(statsTypeMode !== 'all' && e.type !== statsTypeMode) return false;
       if(statsTypeMode === 'expense' && statsExpenseTypeFilter && e.expenseType !== statsExpenseTypeFilter) return false;
       if(statsTypeMode === 'welfare' && statsWelfareTypeFilter && e.welfareType !== statsWelfareTypeFilter) return false;
@@ -7069,8 +7316,7 @@
     var body = document.getElementById('statsBody');
     var html = '';
     var statsAdmin = isAdminUser();
-    if(!statsAdmin){
-      statsPeriodMode = 'all';
+    if(!statsAdmin && statsTypeMode !== 'task' && statsTypeMode !== 'attendance'){
       statsTypeMode = 'task';
       statsExpenseTypeFilter = '';
       statsWelfareTypeFilter = '';
@@ -7078,16 +7324,14 @@
 
     html += '<p class="field-label field-label-strong">📅 기간</p>';
     html += '<div class="chiprow" id="statsPeriodChips" style="margin-bottom:16px;">';
-    var statsPeriodChipOptions = statsAdmin ? [['all','전체'],['week','이번주'],['lastweek','전주'],['month','이번달'],['quarter','분기'],['half','반기']] : [['all','전체']];
+    var statsPeriodChipOptions = [['all','전체'],['week','이번주'],['lastweek','전주'],['month','이번달'],['quarter','분기'],['half','반기']];
     statsPeriodChipOptions.forEach(function(p){
       html += '<button class="chip'+(statsPeriodMode===p[0]?' selected':'')+'" data-val="'+p[0]+'" type="button">'+p[1]+'</button>';
     });
-    if(statsAdmin){
-      var monthPickLabel = (statsPeriodMode === 'specificmonth') ? ('📅 '+statsSpecificYear+'년 '+(statsSpecificMonth+1)+'월') : '📅 월 선택';
-      html += '<button class="chip'+(statsPeriodMode==='specificmonth'?' selected':'')+'" id="statsMonthPickBtn" type="button">'+monthPickLabel+'</button>';
-      var yearPickLabel = (statsPeriodMode === 'specificyear') ? ('📅 '+statsSpecificYear+'년') : '📅 연도 선택';
-      html += '<button class="chip'+(statsPeriodMode==='specificyear'?' selected':'')+'" id="statsYearPickBtn" type="button">'+yearPickLabel+'</button>';
-    }
+    var monthPickLabel = (statsPeriodMode === 'specificmonth') ? ('📅 '+statsSpecificYear+'년 '+(statsSpecificMonth+1)+'월') : '📅 월 선택';
+    html += '<button class="chip'+(statsPeriodMode==='specificmonth'?' selected':'')+'" id="statsMonthPickBtn" type="button">'+monthPickLabel+'</button>';
+    var yearPickLabel = (statsPeriodMode === 'specificyear') ? ('📅 '+statsSpecificYear+'년') : '📅 연도 선택';
+    html += '<button class="chip'+(statsPeriodMode==='specificyear'?' selected':'')+'" id="statsYearPickBtn" type="button">'+yearPickLabel+'</button>';
     html += '</div>';
 
     if(['specificyear','quarter','half','year','month','lastmonth','specificmonth'].indexOf(statsPeriodMode) !== -1){
@@ -7096,7 +7340,7 @@
 
     html += '<p class="field-label field-label-strong">🏷️ 유형</p>';
     html += '<div class="chiprow" id="statsTypeChips" style="margin-bottom:20px;">';
-    var statsTypeChipOptions = statsAdmin ? [['all','전체'],['trip','✈️ 출장'],['expense','💳 경비'],['overtime','🌙 야근'],['welfare','🎁 복지비'],['task','📝 업무']] : [['task','📝 업무']];
+    var statsTypeChipOptions = statsAdmin ? [['all','전체'],['trip','✈️ 출장'],['expense','💳 경비'],['overtime','🌙 야근'],['welfare','🎁 복지비'],['task','📝 업무'],['attendance','🗓️ 근무기록']] : [['task','📝 업무'],['attendance','🗓️ 근무기록']];
     statsTypeChipOptions.forEach(function(t){
       html += '<button class="chip'+(statsTypeMode===t[0]?' selected':'')+'" data-val="'+t[0]+'" type="button">'+t[1]+'</button>';
     });
@@ -7400,7 +7644,9 @@
         }
         var isConfirmingStats = statsConfirmDeleteId === e.id;
         html += '<div class="record-actions" style="margin-top:8px;">';
-        if(isConfirmingStats){
+        if(!canEditEntry(e)){
+          html += '<span style="font-size:12px;color:var(--ink-soft);">🔒 다른 직원의 기록이라 읽기만 가능해요</span>';
+        }else if(isConfirmingStats){
           html += '<span style="font-size:12.5px;color:var(--brick);">정말 삭제할까요?</span>';
           html += '<button class="danger" data-stats-confirmdel="'+e.id+'" type="button">삭제</button>';
           html += '<button class="cancelbtn" data-stats-canceldel="'+e.id+'" type="button" style="padding:6px 12px;font-size:12.5px;">취소</button>';
@@ -7763,103 +8009,12 @@
       }, 1000);
     });
     document.getElementById('logoutBtn').addEventListener('click', logout);
-    var switchEmployeeBtnEl = document.getElementById('switchEmployeeBtn');
-    if(switchEmployeeBtnEl) switchEmployeeBtnEl.addEventListener('click', function(){
-      closeSheet('settingsSheet');
-      switchEmployeeAccount();
-    });
     document.getElementById('appTitle').addEventListener('click', function(){ location.reload(); });
   }
 
   // ---------- 직원별 로그인 (ver3.0) ----------
-  var EMP_SESSION_LOCAL_KEY = 'work_journal_currentEmployee_v1';
-  var currentEmployee = null;
-  var isBootstrapAdmin = false;
-  var employeeLockResolve = null;
-
-  function isAdminUser(){
-    if(isBootstrapAdmin) return true;
-    return !!(currentEmployee && currentEmployee.role === '관리자');
-  }
-
-  function renderEmployeeLoginPicker(selectedId){
-    var wrap = document.getElementById('empLoginNameList');
-    if(!wrap) return;
-    var html = '';
-    var sortedEmps = employees.slice().filter(function(e){ return !e.resignDate; }).sort(function(a,b){
-      return stripEmojiForCompare(a.name||'').localeCompare(stripEmojiForCompare(b.name||''), 'ko');
-    });
-    if(sortedEmps.length === 0){
-      html += '<p class="empty-inline">등록된 직원이 없어요.</p>';
-    }else{
-      sortedEmps.forEach(function(e){
-        html += '<button type="button" class="chip'+(selectedId===e.id?' selected':'')+'" data-emplogin="'+e.id+'">'+escapeHtml(e.name)+'</button>';
-      });
-    }
-    wrap.innerHTML = html;
-    wrap.querySelectorAll('[data-emplogin]').forEach(function(btn){
-      btn.addEventListener('click', function(){
-        document.getElementById('empLoginSelectedId').value = btn.getAttribute('data-emplogin');
-        renderEmployeeLoginPicker(btn.getAttribute('data-emplogin'));
-        document.getElementById('empLoginPw').focus();
-      });
-    });
-  }
-
-  function attemptEmployeeLogin(){
-    var id = document.getElementById('empLoginSelectedId').value;
-    var pw = document.getElementById('empLoginPw').value;
-    var err = document.getElementById('empLoginErr');
-    err.textContent = '';
-    if(!id){ err.textContent = '이름을 선택해주세요'; return; }
-    var emp = employees.find(function(x){ return x.id === id; });
-    if(!emp){ err.textContent = '직원 정보를 찾을 수 없어요'; return; }
-    if((emp.password||'') !== pw){ err.textContent = '비밀번호가 틀렸어요'; return; }
-    currentEmployee = emp;
-    try{ localStorage.setItem(EMP_SESSION_LOCAL_KEY, id); }catch(e){}
-    document.getElementById('empLockScreen').style.display = 'none';
-    document.getElementById('empLoginPw').value = '';
-    if(employeeLockResolve){ employeeLockResolve(); employeeLockResolve = null; }
-  }
-
-  function showEmployeeLockScreen(){
-    return new Promise(function(resolve){
-      employeeLockResolve = resolve;
-      document.getElementById('empLoginSelectedId').value = '';
-      document.getElementById('empLoginPw').value = '';
-      document.getElementById('empLoginErr').textContent = '';
-      renderEmployeeLoginPicker(null);
-      document.getElementById('empLockScreen').style.display = 'flex';
-    });
-  }
-
-  async function initEmployeeGate(){
-    if(employees.length === 0){
-      isBootstrapAdmin = true;
-      currentEmployee = null;
-      return;
-    }
-    var storedId = null;
-    try{ storedId = localStorage.getItem(EMP_SESSION_LOCAL_KEY); }catch(e){}
-    var found = storedId ? employees.find(function(x){ return x.id === storedId; }) : null;
-    if(found){
-      currentEmployee = found;
-      return;
-    }
-    await showEmployeeLockScreen();
-  }
-
-  function switchEmployeeAccount(){
-    currentEmployee = null;
-    isBootstrapAdmin = false;
-    try{ localStorage.removeItem(EMP_SESSION_LOCAL_KEY); }catch(e){}
-    closeAllSheets();
-    showEmployeeLockScreen().then(function(){
-      applyRoleUI();
-      renderCalendar();
-      renderDayDetail();
-    });
-  }
+  // EMP_SESSION_LOCAL_KEY / currentEmployee / isAdminUser 등은
+  // 위쪽 "Lock / login" 섹션에서 이미 선언되어 있어요 (여기서 다시 선언하지 않음).
 
   function applyRoleUI(){
     var admin = isAdminUser();
@@ -7871,7 +8026,6 @@
     if(adminSettings) adminSettings.style.display = admin ? '' : 'none';
     var infoBox = document.getElementById('currentEmployeeInfo');
     var infoText = document.getElementById('currentEmployeeInfoText');
-    var switchBtn = document.getElementById('switchEmployeeBtn');
     if(infoBox && infoText){
       if(currentEmployee){
         infoText.textContent = '👤 '+currentEmployee.name+' · '+(currentEmployee.role||'일반');
@@ -7880,7 +8034,6 @@
         infoBox.style.display = 'none';
       }
     }
-    if(switchBtn) switchBtn.style.display = (employees.length > 0) ? '' : 'none';
   }
 
   async function init(){
@@ -7903,7 +8056,6 @@
       monthlyBudget = await loadMonthlyBudget();
       budgetWarningPct = await loadBudgetWarningPct();
       employees = await loadEmployees();
-      await initEmployeeGate();
       applyRoleUI();
       var empOpts = await loadEmployeeOptions();
       employeeCompanies = empOpts.companies;
