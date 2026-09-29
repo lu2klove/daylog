@@ -996,6 +996,7 @@
 
   <div id="syncErrorBanner" style="display:none;background:var(--brick);color:#fff;padding:10px 14px;border-radius:8px;font-size:12.5px;margin-bottom:12px;white-space:pre-wrap;word-break:break-all;"></div>
   <div id="backupReminderBanner" style="display:none;"></div>
+  <div id="announcementBanner" style="display:none;margin-bottom:12px;"></div>
   <div id="budgetWarningBanner" style="display:none;"></div>
   <div id="settlementReminderBanner" style="display:none;"></div>
   <div id="settlementReminderList" style="display:none;"></div>
@@ -1097,6 +1098,25 @@
   <div class="side-scroll-wrap">
     <div class="side-body" id="employeeOptionsBody"></div>
   </div>
+</div>
+
+<div class="side-screen" id="announcementScreen">
+  <div class="side-header">
+    <button class="side-back" id="announcementBackBtn" type="button">‹ 뒤로</button>
+    <span class="side-title">📢 공지사항</span>
+    <span style="width:44px;"></span>
+  </div>
+  <div class="side-scroll-wrap">
+    <div class="side-body" id="announcementBody"></div>
+  </div>
+</div>
+
+<div class="bottom-sheet" id="announcementFormSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">📢 공지 등록</span>
+    <button class="sheet-close" id="announcementFormCloseBtn" type="button">✕</button>
+  </div>
+  <div id="announcementFormBody"></div>
 </div>
 
 <div class="bottom-sheet" id="employeeFormSheet">
@@ -1407,6 +1427,11 @@
   <p class="card-title">🗂️ 등록관리</p>
   <div class="ios-list" style="margin-bottom:8px;">
     <button class="cancelbtn" id="employeeOptionsRowBtn" type="button" style="width:100%;text-align:left;">회사명 · 부서명 · 프로젝트 · 직무 · 근무지 · 근무형태 관리 ›</button>
+  </div>
+
+  <p class="card-title">📢 공지사항</p>
+  <div class="ios-list" style="margin-bottom:8px;">
+    <button class="cancelbtn" id="announcementRowBtn" type="button" style="width:100%;text-align:left;">공지 등록 · 관리 ›</button>
   </div>
 
   <p class="card-title">🔔 알림설정</p>
@@ -1801,6 +1826,7 @@
       applyRoleUI();
       renderCalendar();
       renderDayDetail();
+      renderAnnouncementBanner();
     }
   }
   function showSetupView(){
@@ -3235,6 +3261,218 @@
     }catch(e){ reportSyncError('과업실적 저장', e); }
   }
 
+  // ---------- 공지사항 ----------
+  var announcements = []; // [{id, title, content, pinned, startDate, endDate, createdAt, updatedAt}]
+  function announcementRowToObject(row){
+    return Object.assign({
+      id: row.id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }, row.data || {});
+  }
+  function announcementObjectToRow(obj, userId){
+    var rest = Object.assign({}, obj);
+    delete rest.id; delete rest.createdAt; delete rest.updatedAt;
+    return {
+      id: obj.id,
+      user_id: userId,
+      data: rest,
+      updated_at: obj.updatedAt || new Date().toISOString()
+    };
+  }
+  async function loadAnnouncements(){
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid){ reportSyncError('공지사항 불러오기', '로그인 세션을 찾을 수 없어요'); return []; }
+      var res = await supabaseClient.from('announcements').select('*').eq('user_id', uid);
+      if(res.error){ reportSyncError('공지사항 불러오기', res.error); return []; }
+      return res.data.map(announcementRowToObject);
+    }catch(e){ reportSyncError('공지사항 불러오기', e); return []; }
+  }
+  async function saveAnnouncements(){
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid){ reportSyncError('공지사항 저장', '로그인 세션을 찾을 수 없어요'); return; }
+      var rows = announcements.map(function(x){ return announcementObjectToRow(x, uid); });
+      if(rows.length > 0){
+        var upsertRes = await supabaseClient.from('announcements').upsert(rows, { onConflict: 'id' });
+        if(upsertRes.error){ reportSyncError('공지사항 저장', upsertRes.error); return; }
+      }
+      var existingRes = await supabaseClient.from('announcements').select('id').eq('user_id', uid);
+      if(existingRes.error){
+        reportSyncError('공지사항 조회(삭제 처리용)', existingRes.error);
+      }else{
+        var currentIds = {};
+        announcements.forEach(function(x){ currentIds[x.id] = true; });
+        var idsToDelete = existingRes.data.filter(function(r){ return !currentIds[r.id]; }).map(function(r){ return r.id; });
+        if(idsToDelete.length > 0){
+          var delRes = await supabaseClient.from('announcements').delete().in('id', idsToDelete);
+          if(delRes.error) reportSyncError('공지사항 삭제', delRes.error);
+        }
+      }
+    }catch(e){ reportSyncError('공지사항 저장', e); }
+  }
+
+  function activeAnnouncements(){
+    var today = todayStr();
+    return announcements.filter(function(a){
+      if(a.startDate && today < a.startDate) return false;
+      if(a.endDate && today > a.endDate) return false;
+      return true;
+    }).sort(function(a,b){
+      if(!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+      return (b.createdAt||'') < (a.createdAt||'') ? -1 : 1;
+    });
+  }
+
+  var ANNOUNCEMENT_DISMISS_KEY = 'work_journal_dismissed_announcements_v1';
+  function getDismissedAnnouncementIds(){
+    try{ return JSON.parse(localStorage.getItem(ANNOUNCEMENT_DISMISS_KEY) || '[]'); }catch(e){ return []; }
+  }
+  function dismissAnnouncement(id){
+    var list = getDismissedAnnouncementIds();
+    if(list.indexOf(id) === -1) list.push(id);
+    try{ localStorage.setItem(ANNOUNCEMENT_DISMISS_KEY, JSON.stringify(list)); }catch(e){}
+  }
+
+  function renderAnnouncementBanner(){
+    var wrap = document.getElementById('announcementBanner');
+    if(!wrap) return;
+    var dismissed = getDismissedAnnouncementIds();
+    var visible = activeAnnouncements().filter(function(a){ return a.pinned || dismissed.indexOf(a.id) === -1; });
+    if(visible.length === 0){
+      wrap.style.display = 'none';
+      wrap.innerHTML = '';
+      return;
+    }
+    wrap.style.display = 'block';
+    var html = '';
+    visible.forEach(function(a){
+      html += '<div class="rule-card" style="margin-bottom:8px;background:var(--amber-soft);">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">';
+      html += '<div>';
+      if(a.pinned) html += '<span style="font-size:11px;font-weight:700;color:var(--amber);">📌 고정</span> ';
+      html += '<span style="font-weight:700;font-size:13.5px;">'+escapeHtml(a.title||'')+'</span>';
+      if(a.content) html += '<p style="font-size:12.5px;color:var(--ink-soft);margin-top:4px;white-space:pre-wrap;">'+escapeHtml(a.content)+'</p>';
+      html += '</div>';
+      if(!a.pinned){
+        html += '<button class="sheet-close" data-announcement-dismiss="'+a.id+'" type="button" style="flex-shrink:0;">✕</button>';
+      }
+      html += '</div></div>';
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('[data-announcement-dismiss]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        dismissAnnouncement(btn.getAttribute('data-announcement-dismiss'));
+        renderAnnouncementBanner();
+      });
+    });
+  }
+
+  var editingAnnouncementId = null;
+  function renderAnnouncementScreen(){
+    var body = document.getElementById('announcementBody');
+    var html = '';
+    html += '<button class="savebtn" id="addAnnouncementBtn" type="button" style="width:100%;margin-bottom:16px;">+ 새 공지 등록</button>';
+    var sorted = announcements.slice().sort(function(a,b){
+      if(!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+      return (b.createdAt||'') < (a.createdAt||'') ? -1 : 1;
+    });
+    if(sorted.length === 0){
+      html += '<p class="empty-inline">등록된 공지가 없어요.</p>';
+    }else{
+      sorted.forEach(function(a){
+        var periodLabel = (a.startDate || a.endDate) ? ((a.startDate||'시작 미지정')+' ~ '+(a.endDate||'종료 미지정')) : '상시';
+        html += '<div class="rule-card" data-announcement-row="'+a.id+'" style="margin-bottom:10px;cursor:pointer;">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">';
+        html += '<div>';
+        if(a.pinned) html += '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;background:var(--amber-soft);color:var(--amber);">📌 고정</span>';
+        html += '<p style="font-weight:700;font-size:14px;margin-top:4px;">'+escapeHtml(a.title||'')+'</p>';
+        html += '</div></div>';
+        html += '<p class="savehint" style="margin-top:6px;">기간: '+escapeHtml(periodLabel)+'</p>';
+        html += '</div>';
+      });
+    }
+    body.innerHTML = html;
+    document.getElementById('addAnnouncementBtn').addEventListener('click', function(){ openAnnouncementForm(null); });
+    body.querySelectorAll('[data-announcement-row]').forEach(function(row){
+      row.addEventListener('click', function(){
+        var a = announcements.find(function(x){ return x.id === row.getAttribute('data-announcement-row'); });
+        if(a) openAnnouncementForm(a);
+      });
+    });
+  }
+
+  function openAnnouncementForm(existing){
+    editingAnnouncementId = existing ? existing.id : null;
+    var e = existing || {};
+    var body = document.getElementById('announcementFormBody');
+    var html = '';
+    html += '<div class="field"><span class="field-label field-label-strong">제목</span><input type="text" id="an_title" placeholder="예: 9월 정기 회식 안내" value="'+escapeHtml(e.title||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">내용</span><textarea id="an_content" placeholder="선택 입력" rows="4">'+escapeHtml(e.content||'')+'</textarea></div>';
+    html += '<div class="field"><span class="field-label">📌 고정</span><div class="chiprow" id="an_pinnedChips">';
+    html += '<button class="chip'+(e.pinned?' selected':'')+'" data-pinned="1" type="button">고정</button>';
+    html += '<button class="chip'+(!e.pinned?' selected':'')+'" data-pinned="0" type="button">고정 안 함</button>';
+    html += '</div></div>';
+    html += '<div class="row2"><div class="field"><span class="field-label">시작일 (선택)</span><input type="date" id="an_startDate" value="'+(e.startDate||'')+'"></div><div class="field"><span class="field-label">종료일 (선택)</span><input type="date" id="an_endDate" value="'+(e.endDate||'')+'"></div></div>';
+    html += '<p class="savehint" style="margin-top:-4px;">시작일·종료일을 비워두면 상시 공지로 표시돼요.</p>';
+    html += '<div class="row2" style="margin-top:16px;"><button class="cancelbtn" id="an_cancelBtn" type="button">취소</button><button class="savebtn" id="an_saveBtn" type="button">저장</button></div>';
+    if(existing){
+      html += '<button class="danger" id="an_deleteBtn" type="button" style="width:100%;margin-top:10px;">이 공지 삭제</button>';
+    }
+    body.innerHTML = html;
+    document.querySelectorAll('#an_pinnedChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        document.querySelectorAll('#an_pinnedChips .chip').forEach(function(x){ x.classList.remove('selected'); });
+        c.classList.add('selected');
+      });
+    });
+    document.getElementById('an_cancelBtn').addEventListener('click', function(){ closeSheet('announcementFormSheet'); });
+    document.getElementById('an_saveBtn').addEventListener('click', saveAnnouncementForm);
+    var delBtn = document.getElementById('an_deleteBtn');
+    if(delBtn){
+      delBtn.addEventListener('click', async function(){
+        announcements = announcements.filter(function(x){ return x.id !== editingAnnouncementId; });
+        await saveAnnouncements();
+        closeSheet('announcementFormSheet');
+        renderAnnouncementScreen();
+        renderAnnouncementBanner();
+      });
+    }
+    openSheet('announcementFormSheet');
+  }
+
+  async function saveAnnouncementForm(){
+    var title = document.getElementById('an_title').value.trim();
+    if(!title){
+      document.getElementById('an_title').focus();
+      return;
+    }
+    var now = new Date().toISOString();
+    var existingAnn = announcements.find(function(x){ return x.id === editingAnnouncementId; });
+    var pinnedChip = document.querySelector('#an_pinnedChips .chip.selected');
+    var payload = {
+      id: editingAnnouncementId || uid(),
+      title: title,
+      content: document.getElementById('an_content').value.trim(),
+      pinned: pinnedChip ? pinnedChip.getAttribute('data-pinned') === '1' : false,
+      startDate: document.getElementById('an_startDate').value,
+      endDate: document.getElementById('an_endDate').value,
+      createdAt: existingAnn ? existingAnn.createdAt || now : now,
+      updatedAt: now
+    };
+    if(editingAnnouncementId){
+      var idx = announcements.findIndex(function(x){ return x.id === editingAnnouncementId; });
+      if(idx >= 0) announcements[idx] = payload; else announcements.push(payload);
+    }else{
+      announcements.push(payload);
+    }
+    await saveAnnouncements();
+    closeSheet('announcementFormSheet');
+    renderAnnouncementScreen();
+    renderAnnouncementBanner();
+  }
+
   function renderEmployeeOptionsScreen(){
     var body = document.getElementById('employeeOptionsBody');
     var html = '';
@@ -3255,8 +3493,9 @@
 
   var DONUT_COLOR_PALETTE = ['var(--pine)','var(--amber)','var(--brick)','var(--olive)','#6C8EBF','#9673A6','#D6B656','#82B366','#B85450','#8C9EFF'];
 
-  function renderMiniDonutHTML(title, counts, size){
+  function renderMiniDonutHTML(title, counts, size, unit){
     size = size || 92;
+    unit = unit || '명';
     var innerSize = Math.round(size * 0.63);
     var labels = Object.keys(counts).filter(function(k){ return counts[k] > 0; });
     var total = labels.reduce(function(s,k){ return s + counts[k]; }, 0);
@@ -3277,13 +3516,13 @@
     html += '<div style="display:flex;justify-content:center;margin-bottom:8px;">';
     html += '<div style="width:'+size+'px;height:'+size+'px;border-radius:50%;background:conic-gradient('+gradientParts.join(', ')+');display:flex;align-items:center;justify-content:center;">';
     html += '<div style="width:'+innerSize+'px;height:'+innerSize+'px;border-radius:50%;background:var(--paper-raised);display:flex;flex-direction:column;align-items:center;justify-content:center;">';
-    html += '<span style="font-size:14px;font-weight:700;">'+total+'</span><span style="font-size:9px;color:var(--ink-faint);">명</span>';
+    html += '<span style="font-size:14px;font-weight:700;">'+total+'</span><span style="font-size:9px;color:var(--ink-faint);">'+unit+'</span>';
     html += '</div></div></div>';
     labels.forEach(function(k, i){
       var color = DONUT_COLOR_PALETTE[i % DONUT_COLOR_PALETTE.length];
       html += '<div style="display:flex;align-items:center;gap:5px;font-size:10.5px;justify-content:center;margin-bottom:2px;">';
       html += '<span style="width:7px;height:7px;border-radius:50%;background:'+color+';display:inline-block;flex-shrink:0;"></span>';
-      html += '<span style="color:var(--ink-soft);">'+escapeHtml(k)+' '+counts[k]+'명</span>';
+      html += '<span style="color:var(--ink-soft);">'+escapeHtml(k)+' '+counts[k]+unit+'</span>';
       html += '</div>';
     });
     html += '</div>';
@@ -7841,6 +8080,7 @@
       attendanceTypes: attendanceTypes,
       evaluations: evaluations,
       taskPerformances: taskPerformances,
+      announcements: announcements,
       exportedAt: new Date().toISOString(),
       app:'work-journal',
       version:3
@@ -7945,6 +8185,15 @@
           });
           await saveTaskPerformances();
         }
+        if(data.announcements && Array.isArray(data.announcements)){
+          var existingAnnIds = {};
+          announcements.forEach(function(x){ existingAnnIds[x.id] = true; });
+          data.announcements.forEach(function(x){
+            if(!existingAnnIds[x.id]) announcements.push(x);
+          });
+          await saveAnnouncements();
+          renderAnnouncementBanner();
+        }
         var pwRestored = false;
         renderCalendar();
         renderDayDetail();
@@ -7954,6 +8203,7 @@
         if(data.employees && Array.isArray(data.employees) && data.employees.length > 0) extraMsgs.push('직원 등록');
         if(data.evaluations && Array.isArray(data.evaluations) && data.evaluations.length > 0) extraMsgs.push('인사평가');
         if(data.taskPerformances && Array.isArray(data.taskPerformances) && data.taskPerformances.length > 0) extraMsgs.push('과업실적');
+        if(data.announcements && Array.isArray(data.announcements) && data.announcements.length > 0) extraMsgs.push('공지사항');
         t.textContent = added + '개의 기록을 불러왔어요' + (extraMsgs.length ? ' ('+extraMsgs.join(', ')+'도 복원됐어요)' : '');
       }catch(err){
         t.style.color = 'var(--brick)';
@@ -8233,7 +8483,7 @@
     html += '</div>';
 
     if(hrStatsViewTab === 'org'){
-      html += renderHrOrgStatsHTML();
+      html += renderHrOrgStatsHTML(filtered);
     }else{
     var typeCounts = {};
     attendanceTypes.forEach(function(t){ typeCounts[t] = 0; });
@@ -8440,18 +8690,26 @@
   }
 
   // ---------- 인사관리 화면 내 "회사/직무/직급 별 통계" 탭 콘텐츠 ----------
-  function renderHrOrgStatsHTML(){
-    var active = computeEmployeeStats().active;
+  function renderHrOrgStatsHTML(filteredEntries){
     var html = '';
-    if(active.length === 0){
-      html += '<p class="empty-inline">재직 중인 직원이 없어요.</p>';
+    if(!filteredEntries || filteredEntries.length === 0){
+      html += '<p class="empty-inline">선택한 기간·유형에 해당하는 근무기록이 없어요.</p>';
       return html;
     }
-    html += '<p class="savehint" style="margin-bottom:14px;">재직 중인 직원 '+active.length+'명 기준이에요.</p>';
+    function countByEmployeeField(field){
+      var counts = {};
+      filteredEntries.forEach(function(e){
+        var emp = employees.find(function(x){ return x.id === e.employeeId; });
+        var v = emp ? (emp[field] || '미지정') : '(직원 정보 없음)';
+        counts[v] = (counts[v] || 0) + 1;
+      });
+      return counts;
+    }
+    html += '<p class="savehint" style="margin-bottom:14px;">선택한 기간·유형 기준, 근무기록 '+filteredEntries.length+'건이에요.</p>';
     html += '<div style="display:flex;flex-wrap:wrap;gap:16px;">';
-    html += renderMiniDonutHTML('🏢 회사별', computeDonutCounts(active, 'company'), 110);
-    html += renderMiniDonutHTML('🛠️ 직무별', computeDonutCounts(active, 'job'), 110);
-    html += renderMiniDonutHTML('🎖️ 직급별', computeDonutCounts(active, 'position'), 110);
+    html += renderMiniDonutHTML('🏢 회사별', countByEmployeeField('company'), 110, '건');
+    html += renderMiniDonutHTML('🛠️ 직무별', countByEmployeeField('job'), 110, '건');
+    html += renderMiniDonutHTML('🎖️ 직급별', countByEmployeeField('position'), 110, '건');
     html += '</div>';
     return html;
   }
@@ -9040,6 +9298,16 @@
       document.getElementById('employeeOptionsScreen').classList.remove('open');
       openSheet('settingsSheet');
     });
+    document.getElementById('announcementRowBtn').addEventListener('click', function(){
+      closeSheet('settingsSheet');
+      renderAnnouncementScreen();
+      document.getElementById('announcementScreen').classList.add('open');
+    });
+    document.getElementById('announcementBackBtn').addEventListener('click', function(){
+      document.getElementById('announcementScreen').classList.remove('open');
+      openSheet('settingsSheet');
+    });
+    document.getElementById('announcementFormCloseBtn').addEventListener('click', function(){ closeSheet('announcementFormSheet'); });
     document.getElementById('employeeFormCloseBtn').addEventListener('click', function(){ closeSheet('employeeFormSheet'); });
     document.getElementById('attendanceCloseBtn').addEventListener('click', function(){ closeSheet('attendanceSheet'); });
     document.getElementById('teamDinnerBtn').addEventListener('click', async function(){
@@ -9232,6 +9500,8 @@
       evaluations = await loadEvaluations();
       await migrateEvaluationEmployeeNames();
       taskPerformances = await loadTaskPerformances();
+      announcements = await loadAnnouncements();
+      renderAnnouncementBanner();
       var backupReminderData = await loadBackupReminder();
       backupReminderDays = backupReminderData.days != null ? backupReminderData.days : 7;
       lastBackupDate = backupReminderData.last || null;
