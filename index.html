@@ -1372,6 +1372,14 @@
     <button class="cancelbtn" id="myInfoOpenBtn" type="button" style="padding:6px 12px;font-size:12px;flex-shrink:0;">MY정보 ›</button>
   </div>
 
+  <!-- 이름정보(위 currentEmployeeInfo) 바로 아래, 관리자에게만 표시 -->
+  <div id="settingsAnnouncementSection" style="display:none;">
+  <p class="card-title no-divider">📢 공지사항</p>
+  <div class="ios-list" style="margin-bottom:8px;">
+    <button class="cancelbtn" id="announcementRowBtn" type="button" style="width:100%;text-align:left;">공지 등록 · 관리 ›</button>
+  </div>
+  </div>
+
   <p class="card-title no-divider">🌓 테마</p>
   <div class="chiprow" id="themeChips" style="margin-bottom:22px;">
     <button class="chip" data-theme="auto" type="button">자동</button>
@@ -1434,15 +1442,6 @@
   <p class="card-title">🗂️ 등록관리</p>
   <div class="ios-list" style="margin-bottom:8px;">
     <button class="cancelbtn" id="employeeOptionsRowBtn" type="button" style="width:100%;text-align:left;">회사명 · 부서명 · 프로젝트 · 직무 · 근무지 · 근무형태 관리 ›</button>
-  </div>
-
-  <!-- 공지사항 관리는 보통 MY정보 화면 하단으로 옮겨졌지만, 직원 프로필 없이 이메일·비밀번호로
-       로그인한 관리자 계정은 MY정보 화면 자체에 접근할 수 없어서, 그 경우에만 예외적으로 여기 남겨둬요. -->
-  <div id="settingsAnnouncementSection" style="display:none;">
-  <p class="card-title">📢 공지사항</p>
-  <div class="ios-list" style="margin-bottom:8px;">
-    <button class="cancelbtn" id="announcementRowBtn" type="button" style="width:100%;text-align:left;">공지 등록 · 관리 ›</button>
-  </div>
   </div>
 
   <p class="card-title">🔔 알림설정</p>
@@ -3427,7 +3426,6 @@
   }
 
   var editingAnnouncementId = null;
-  var announcementScreenReturnTo = 'myInfoSheet'; // 공지사항 화면에서 '뒤로' 눌렀을 때 돌아갈 시트
   var currentAnnouncementImage = null;
   function announcementImagePreviewHTML(){
     if(currentAnnouncementImage){
@@ -5293,13 +5291,6 @@
     html += '<button class="savebtn" id="my_saveBtn" type="button">저장</button>';
     html += '</div>';
 
-    // 공지사항 등록·관리는 관리자 권한만 볼 수 있어요 (설정 > 공지사항에서 이 화면 하단으로 옮겨왔어요).
-    if(isAdminUser()){
-      html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
-      html += '<p class="card-title" style="margin-top:0;">📢 공지사항</p>';
-      html += '<button class="cancelbtn" id="my_announcementRowBtn" type="button" style="width:100%;text-align:left;">공지 등록 · 관리 ›</button>';
-    }
-
     body.innerHTML = html;
 
     function wireSingleSelectChips(containerId){
@@ -5362,15 +5353,6 @@
 
     document.getElementById('my_cancelBtn').addEventListener('click', function(){ openSheet('settingsSheet'); });
     document.getElementById('my_saveBtn').addEventListener('click', saveMyInfoForm);
-    var myAnnBtn = document.getElementById('my_announcementRowBtn');
-    if(myAnnBtn){
-      myAnnBtn.addEventListener('click', function(){
-        announcementScreenReturnTo = 'myInfoSheet';
-        closeSheet('myInfoSheet');
-        renderAnnouncementScreen();
-        document.getElementById('announcementScreen').classList.add('open');
-      });
-    }
 
     openSheet('myInfoSheet');
   }
@@ -9453,10 +9435,9 @@
     });
     document.getElementById('announcementBackBtn').addEventListener('click', function(){
       document.getElementById('announcementScreen').classList.remove('open');
-      openSheet(announcementScreenReturnTo);
+      openSheet('settingsSheet');
     });
     document.getElementById('announcementRowBtn').addEventListener('click', function(){
-      announcementScreenReturnTo = 'settingsSheet';
       closeSheet('settingsSheet');
       renderAnnouncementScreen();
       document.getElementById('announcementScreen').classList.add('open');
@@ -9620,11 +9601,9 @@
     // (실제 관리자 계정으로) 이메일/비밀번호로 로그인했을 때만 설정 화면에 남아있어요.
     var pwSection = document.getElementById('settingsPwSection');
     if(pwSection) pwSection.style.display = currentEmployee ? 'none' : '';
-    // 공지사항도 마찬가지로 직원 로그인 시에는 MY정보 화면 하단으로 옮겨졌고,
-    // 직원 프로필 없이 이메일/비밀번호로 로그인한 관리자 계정은 MY정보에 접근할 수
-    // 없으므로 그 경우에만 설정 화면에 예외적으로 남겨둬요.
+    // 공지사항은 설정 화면의 이름정보(currentEmployeeInfo) 바로 아래, 관리자에게만 표시돼요.
     var annSection = document.getElementById('settingsAnnouncementSection');
-    if(annSection) annSection.style.display = (admin && !currentEmployee) ? '' : 'none';
+    if(annSection) annSection.style.display = admin ? '' : 'none';
   }
 
   async function init(){
