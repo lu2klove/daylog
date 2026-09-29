@@ -1154,6 +1154,25 @@
   <div id="evaluationFormBody"></div>
 </div>
 
+<div class="bottom-sheet" id="evalTypeChooserSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">📋 평가지 종류 선택</span>
+    <button class="sheet-close" id="evalTypeChooserCloseBtn" type="button">✕</button>
+  </div>
+  <div id="evalTypeChooserBody">
+    <p class="savehint" style="margin-bottom:16px;">새로 작성할 평가지의 종류를 선택해주세요.</p>
+    <button class="rule-card" id="evalTypeChooseABtn" type="button" style="width:100%;text-align:left;margin-bottom:12px;cursor:pointer;">
+      <p style="font-weight:700;font-size:15px;">TYPE A · 기존 평가지</p>
+      <p class="savehint" style="margin-top:4px;">성실도·참여도·업무역량·성과달성·자기계발 기준의 기존 평가 양식이에요.</p>
+    </button>
+    <button class="rule-card" id="evalTypeChooseBBtn" type="button" style="width:100%;text-align:left;cursor:pointer;">
+      <p style="font-weight:700;font-size:15px;">TYPE B · 2026년 신규 평가지</p>
+      <p class="savehint" style="margin-top:4px;">성과달성·업무역량·성실/업무수행·조직기여/협업·자기계발 5개 영역 100점 + Reward(최대 +20) · Penalty(최대 -20) 기준의 신규 양식이에요.</p>
+    </button>
+    <button class="cancelbtn" id="evalTypeChooserCancelBtn" type="button" style="width:100%;margin-top:14px;">취소</button>
+  </div>
+</div>
+
 <div class="bottom-sheet" id="attendanceSheet">
   <div class="sheet-head">
     <span class="sheet-title">🗓️ 근무기록 등록</span>
@@ -5192,12 +5211,13 @@
     var body = document.getElementById('evalGradeTableBody');
     var filteredEvals = evalYearFilter === 'all' ? evaluations : evaluations.filter(function(e){ return e.year === evalYearFilter; });
     var autoTotal = filteredEvals.length;
-    var autoCounts = { 'E+':0, 'E':0, 'M+':0, 'M':0, 'I':0 };
+    var autoCounts = { 'E+':0, 'E':0, 'M+':0, 'M':0, 'I':0, 'S':0, 'A':0, 'B':0, 'C':0, 'D':0 };
     filteredEvals.forEach(function(ev){
-      var g = computeEvalGrade(ev.finalScore, ev.excluded);
+      var g = computeEvalGradeGeneric(ev);
       if(autoCounts[g.grade] != null) autoCounts[g.grade]++;
     });
-    var gradeOrder = ['E+','E','M+','M','I'];
+    var hasTypeBEvals = filteredEvals.some(function(e){ return e.evalType === 'B'; });
+    var gradeOrder = ['E+','E','M+','M','I'].concat(hasTypeBEvals ? ['S','A','B','C','D'] : []);
 
     var html = '';
     html += '<p class="savehint" style="margin-bottom:6px;">'+(evalYearFilter==='all'?'전체 연도':evalYearFilter+'년')+' 평가 기준으로 자동으로 불러왔어요.</p>';
@@ -5270,14 +5290,14 @@
     var filteredEvals = evalYearFilter === 'all' ? evaluations : evaluations.filter(function(e){ return e.year === evalYearFilter; });
 
     if(filteredEvals.length > 0){
-      var gradeCounts = { 'E+':0, 'E':0, 'M+':0, 'M':0, 'I':0, 'N':0 };
+      var gradeCounts = { 'E+':0, 'E':0, 'M+':0, 'M':0, 'I':0, 'S':0, 'A':0, 'B':0, 'C':0, 'D':0, 'N':0 };
       var gradeColors = {};
       filteredEvals.forEach(function(ev){
-        var g = computeEvalGrade(ev.finalScore, ev.excluded);
+        var g = computeEvalGradeGeneric(ev);
         gradeCounts[g.grade] = (gradeCounts[g.grade]||0) + 1;
         gradeColors[g.grade] = g.color;
       });
-      var gradeOrder = ['E+','E','M+','M','I','N'];
+      var gradeOrder = ['E+','E','M+','M','I','S','A','B','C','D','N'];
       var totalEvals = filteredEvals.length;
       html += '<div class="rule-card" style="margin-bottom:20px;">';
       html += '<p style="font-weight:700;font-size:14px;margin:0 0 12px;text-align:center;">📊 등급 분포</p>';
@@ -5308,13 +5328,15 @@
     if(sorted.length === 0){
       html += '<p class="empty-inline">등록된 평가가 없어요.</p>';
     }else{
-      html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:600px;">';
-      html += '<thead><tr><th>순위</th><th>평가연도</th><th>소속</th><th>이름</th><th>업무</th><th>최종점수</th><th>등급</th></tr></thead><tbody>';
+      html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:660px;">';
+      html += '<thead><tr><th>순위</th><th>유형</th><th>평가연도</th><th>소속</th><th>이름</th><th>업무</th><th>최종점수</th><th>등급</th></tr></thead><tbody>';
       sorted.forEach(function(ev, idx){
         var emp = employees.find(function(x){ return x.id === ev.employeeId; });
-        var g = computeEvalGrade(ev.finalScore, ev.excluded);
+        var g = computeEvalGradeGeneric(ev);
+        var typeLabel = ev.evalType === 'B' ? 'B' : 'A';
         html += '<tr data-eval-row="'+ev.id+'" style="cursor:pointer;">';
         html += '<td>'+(idx+1)+'</td>';
+        html += '<td><span style="display:inline-block;padding:2px 7px;border-radius:8px;font-weight:700;font-size:11px;background:var(--amber-soft);color:var(--ink);">'+typeLabel+'</span></td>';
         html += '<td>'+ev.year+'년</td>';
         html += '<td>'+(emp?escapeHtml(emp.department||emp.company||'-'):'-')+'</td>';
         html += '<td>'+(ev.employeeName ? escapeHtml(ev.employeeName) : (emp?escapeHtml(emp.name):'(삭제된 직원)'))+'</td>';
@@ -5328,7 +5350,7 @@
     }
 
     body.innerHTML = html;
-    document.getElementById('addEvaluationBtn').addEventListener('click', function(){ openEvaluationForm(null); });
+    document.getElementById('addEvaluationBtn').addEventListener('click', function(){ openSheet('evalTypeChooserSheet'); });
     var yearChipsEl = document.getElementById('evalYearChips');
     if(yearChipsEl){
       yearChipsEl.querySelectorAll('.chip').forEach(function(c){
@@ -5342,10 +5364,449 @@
     body.querySelectorAll('[data-eval-row]').forEach(function(row){
       row.addEventListener('click', function(){
         var ev = evaluations.find(function(x){ return x.id === row.getAttribute('data-eval-row'); });
-        if(ev) openEvaluationForm(ev);
+        if(!ev) return;
+        if(ev.evalType === 'B') openEvaluationFormB(ev); else openEvaluationForm(ev);
       });
     });
   }
+  // ---------- 개인인사평가 TYPE B (2026년 신규 서식, 첨부 문서 기반) ----------
+  var EVAL_B_ITEMS = [
+    {area:'성과달성', key:'kpi', label:'핵심과업/KPI 달성', pts:15, core:'담당 KPI·과업을 계획 대비 얼마나 달성했는가', evidence:'KPI, 과업계획/결과, 프로젝트 산출물', desc:[
+      '목표 미달이 크고 핵심 과업 누락',
+      '달성률 70% 미만 또는 반복적인 미달',
+      '계획한 핵심 과업을 정상적으로 달성',
+      '목표 초과 또는 핵심과업에서 추가 성과',
+      '도전목표까지 초과 달성하고 조직성과에 유의미한 영향'
+    ]},
+    {area:'성과달성', key:'sla', label:'SLA·서비스 품질', pts:10, core:'SLA, 품질지표, 장애예방·대응·재발방지 등 서비스 품질 기여', evidence:'SLA, 장애/품질지표, RCA, 개선조치', desc:[
+      'SLA/품질지표 미달이 반복',
+      '일부 지표 미달 또는 사후 대응 중심',
+      'SLA·품질 기준을 안정적으로 충족',
+      '장애 예방·품질개선까지 주도',
+      '품질지표를 유의미하게 개선하고 재발방지 체계를 정착'
+    ]},
+    {area:'성과달성', key:'innovation', label:'개선·혁신성과', pts:8, core:'비용·시간·품질·위험을 개선한 구체적 결과', evidence:'개선 전후 지표, 자동화/프로세스 자료', desc:[
+      '개선활동이 없거나 기존 문제 반복',
+      '개선안을 제시했으나 실행/효과가 제한적',
+      '업무개선을 실행하고 효과가 확인됨',
+      '시간·비용·품질·위험 중 1개 이상을 명확히 개선',
+      '정량적 효과가 크고 다른 업무에도 확산'
+    ]},
+    {area:'성과달성', key:'customer', label:'고객·사업 기여', pts:7, core:'고객만족, 사업목표, 대외평가, 수주·유지 등에 대한 기여', evidence:'고객평가, SLA, 수주/유지 자료', desc:[
+      '고객/사업 목표에 부정적 영향',
+      '요구 대응이 수동적이고 일부 미흡',
+      '고객요구와 사업목표를 충족',
+      '고객만족 또는 사업성과에 추가 기여',
+      '핵심 고객/사업 성과에 직접적이고 측정 가능한 기여'
+    ]},
+    {area:'업무역량', key:'expertise', label:'직무전문성', pts:8, core:'담당업무 지식과 기술을 활용하여 독립적으로 업무 수행', evidence:'자격/기술자료, 산출물, 문제해결 사례', desc:[
+      '기본 업무지식 부족, 지속적 지원 필요',
+      '일상업무는 가능하나 복합업무에 지원 필요',
+      '담당업무를 독립적으로 수행',
+      '복합업무를 독립 수행하고 동료 지원 가능',
+      '조직 내 전문역할 수행, 표준/기술을 주도'
+    ]},
+    {area:'업무역량', key:'problemSolving', label:'문제해결·응용력', pts:7, core:'원인분석, 대안수립, 복합문제 해결 및 재발방지', evidence:'RCA, 장애보고서, 개선조치', desc:[
+      '원인분석 없이 임시조치 반복',
+      '일반 문제는 해결하나 복합문제에 취약',
+      '원인분석 후 적절한 해결책 실행',
+      '복합문제를 구조적으로 해결하고 재발방지',
+      '새로운 문제도 체계적으로 해결하고 방법을 조직에 전파'
+    ]},
+    {area:'업무역량', key:'leadership', label:'업무수행·리더십', pts:6, core:'우선순위 설정, 일정·리스크 관리, 과업 주도 및 책임', evidence:'계획서, 일정, 역할분장, 프로젝트 결과', desc:[
+      '우선순위·일정 관리가 미흡',
+      '지시가 있어야 업무 진행',
+      '계획·일정·리스크를 정상 관리',
+      '과업을 주도하고 이해관계자를 조정',
+      '팀/프로젝트의 방향을 제시하고 성과를 이끎'
+    ]},
+    {area:'업무역량', key:'communication', label:'커뮤니케이션', pts:4, core:'보고, 회의, 문서, 고객·상급자 커뮤니케이션의 정확성과 적시성', evidence:'보고서, 회의록, 고객 피드백', desc:[
+      '보고 누락/부정확, 고객·상급자 소통 문제',
+      '보고가 늦거나 핵심정보 누락',
+      '정확하고 적시에 보고',
+      '복잡한 내용을 이해하기 쉽게 정리하고 조정',
+      '이해관계가 충돌하는 상황에서도 합의를 이끌어냄'
+    ]},
+    {area:'업무역량', key:'collaboration', label:'협업', pts:5, core:'관련 부서·협력사와의 역할조정, 갈등관리, 공동목표 달성', evidence:'협업회의, 역할분장, 공동성과', desc:[
+      '협업 갈등·정보공유 부족으로 업무 지장',
+      '협업은 하나 조정에 지속적 지원 필요',
+      '관련자와 원활하게 협업',
+      '부서/협력사 간 역할과 이슈를 적극 조정',
+      '협업체계를 개선해 공동성과를 높임'
+    ]},
+    {area:'성실·업무수행', key:'discipline', label:'근태·규정 준수', pts:5, core:'근무시간, 보안·안전·업무절차 등 정해진 규정의 준수', evidence:'근태·보안·절차 기록', desc:[
+      '무단 결근/이탈 등 중대한 위반',
+      '반복적인 지각·절차 미준수',
+      '정상 근태 및 규정 준수',
+      '규정 준수를 모범적으로 실천하고 위험을 사전 예방',
+      '조직의 준법·보안 문화를 개선'
+    ]},
+    {area:'성실·업무수행', key:'deadline', label:'기한·보고 준수', pts:5, core:'약속된 기한, 보고체계, 진행상황 공유를 지키는 정도', evidence:'일정표, 보고기록, 메일/회의록', desc:[
+      '기한·보고 미준수로 업무 차질',
+      '지연이 반복되나 개선 가능',
+      '기한과 보고체계를 정상 준수',
+      '선제적으로 일정·이슈를 공유해 지연을 예방',
+      '일정관리 체계를 개선하고 팀의 지연을 줄임'
+    ]},
+    {area:'성실·업무수행', key:'responsibility', label:'책임감·주도성', pts:5, core:'업무를 끝까지 관리하고 문제를 사전에 발견·조치하는 정도', evidence:'이슈관리, 조치내역, 개선사례', desc:[
+      '문제 회피·책임 전가',
+      '지시가 있어야 후속조치',
+      '담당업무를 끝까지 책임',
+      '위험을 선제적으로 발견하고 조치',
+      '담당범위를 넘어 조직 문제까지 주도적으로 해결'
+    ]},
+    {area:'조직기여·협업', key:'orgSupport', label:'조직지원·공동업무', pts:5, core:'팀 공통업무, 긴급지원, 동료 지원 등 조직 전체 성과에 기여', evidence:'공동업무 기록, 지원내역', desc:[
+      '공동업무 회피 또는 협업 저해',
+      '요청 시 제한적으로 지원',
+      '팀 공통업무에 정상 참여',
+      '동료 지원·긴급지원으로 팀 성과에 기여',
+      '조직 전체의 업무부담·리스크를 크게 줄임'
+    ]},
+    {area:'조직기여·협업', key:'mentoring', label:'지식공유·육성', pts:5, core:'매뉴얼, 교육, 후배 육성, 노하우 전파 등 조직 역량 향상', evidence:'교육자료, 매뉴얼, 멘토링 기록', desc:[
+      '지식공유·후배지원 없음',
+      '비정기적 지원',
+      '필요한 지식공유·교육 수행',
+      '매뉴얼/교육을 통해 팀원의 독립 수행을 지원',
+      '교육체계를 만들고 조직 역량을 지속 향상'
+    ]},
+    {area:'자기계발', key:'selfdev', label:'교육·자격·학습활동', pts:5, core:'직무 관련 교육·자격·세미나·학습을 실제 업무에 적용', evidence:'교육이수, 자격, 세미나, 적용사례', desc:[
+      '직무 관련 학습활동 없음',
+      '교육/학습은 있으나 업무 적용이 확인되지 않음',
+      '직무 관련 학습을 수행하고 일부 적용',
+      '학습 내용을 업무 개선에 적극 적용',
+      '학습을 표준화·전파하여 조직 성과로 연결'
+    ]}
+  ];
+  var EVAL_B_AREA_ICON = {'성과달성':'🎯','업무역량':'🧠','성실·업무수행':'🏃','조직기여·협업':'🤝','자기계발':'🌱'};
+
+  var EVAL_B_REWARD_ITEMS = [
+    {key:'improvement', label:'업무개선', maxPts:5, criteria:'실제 적용되어 비용·시간·품질·위험 중 1개 이상 개선효과가 확인된 경우', evidence:'개선 전/후 자료, 지표', stages:['개선안 제시','개선 실행','정량효과 확인','효과가 명확하고 지속','조직 표준/타 업무로 확산']},
+    {key:'projectContrib', label:'주요 프로젝트·사업목표 기여', maxPts:4, criteria:'본인 역할이 명확하고 프로젝트/사업의 핵심 결과에 직접 기여한 경우', evidence:'프로젝트 결과, 역할자료', stages:['지원 역할','일부 핵심과업 수행','핵심과업 수행','성과에 직접 기여','핵심성과에 결정적 기여']},
+    {key:'proposal', label:'제안·수주 기여', maxPts:3, criteria:'제안서·발표·기술지원 등이 실제 제안 경쟁력 또는 수주에 기여한 경우', evidence:'제안서, 수주자료', stages:['자료지원','핵심자료 작성','발표/기술지원','수주 결과에 실질적 기여']},
+    {key:'mentoring', label:'직원육성·리더십', maxPts:3, criteria:'교육·멘토링·업무분장·리딩으로 팀원의 역량 또는 생산성을 높인 경우', evidence:'교육자료, 멘토링 기록', stages:['일회성 교육','정기 멘토링','후배 독립수행 지원','교육체계/매뉴얼 구축']},
+    {key:'process', label:'프로세스·품질 담당', maxPts:2, criteria:'공통 프로세스, 품질, 보안, 인증 등의 책임자로 개선을 주도한 경우', evidence:'산출물, 인증/점검자료', stages:['부분 지원','책임자로 운영','개선 결과 정착']},
+    {key:'urgentSupport', label:'조직 공통·긴급지원 기여', maxPts:3, criteria:'예상치 못한 긴급업무를 수행하여 서비스/사업 중단을 예방하거나 조직 성과에 기여한 경우', evidence:'작업기록, 장애보고서', stages:['단순 지원','중요 업무 지원','긴급상황 해결','조직 손실/중단 예방']}
+  ];
+
+  var EVAL_B_PENALTY_ITEMS = [
+    {key:'negligence', label:'중대한 업무상 과실', maxPts:15, principle:'명확한 주의의무/절차 위반 + 실제 업무영향이 있는 경우', evidence:'사실관계, 작업·승인기록, RCA', ranges:{minor:'-1~-3', moderate:'-4~-7', major:'-8~-15'}},
+    {key:'incidentFault', label:'장애·보안사고 개인 귀책', maxPts:15, principle:'사고 발생 자체는 감점하지 않으며 개인 귀책이 확인된 범위만 감점', evidence:'RCA, 책임범위, 승인·작업기록', ranges:{minor:'-1~-3', moderate:'-4~-7', major:'-8~-15'}},
+    {key:'repeatedViolation', label:'반복적 절차·보고 위반', maxPts:5, principle:'개선요구 후 반복된 경우 중심으로 적용', evidence:'개선요구, 경고, 기록', ranges:{minor:'-1', moderate:'-2~-3', major:'-4~-5'}},
+    {key:'attendance', label:'정당한 사유 없는 근태 위반', maxPts:5, principle:'무단 지각·결근·이탈 등 객관적으로 확인되는 경우', evidence:'근태기록', ranges:{minor:'-1', moderate:'-2~-3', major:'-4~-5'}},
+    {key:'deadlineMiss', label:'업무기한 반복 미준수', maxPts:3, principle:'사전 공유 없이 반복되고 실질적 업무영향이 있는 경우', evidence:'일정표, 보고기록', ranges:{minor:'-1', moderate:'-2', major:'-3'}},
+    {key:'majorViolation', label:'고의·중대한 규정 위반', maxPts:20, principle:'고의성·위험성·실제 영향 등을 종합 판단. 필요시 인사조치와 별도 운영', evidence:'사실확인, 인사조치 자료', ranges:{minor:'-5', moderate:'-10', major:'-15~-20'}}
+  ];
+
+  var EVAL_B_GRADE_SCALE = [
+    {grade:'S', min:105, color:'var(--pine)'},
+    {grade:'A', min:95,  color:'var(--pine)'},
+    {grade:'B', min:85,  color:'var(--olive)'},
+    {grade:'C', min:75,  color:'var(--olive)'},
+    {grade:'D', min:-Infinity, color:'var(--brick)'}
+  ];
+  function computeEvalGradeB(finalScore, excluded){
+    if(excluded) return { grade:'N', color:'var(--ink-faint)' };
+    for(var i=0; i<EVAL_B_GRADE_SCALE.length; i++){
+      if(finalScore >= EVAL_B_GRADE_SCALE[i].min) return EVAL_B_GRADE_SCALE[i];
+    }
+    return EVAL_B_GRADE_SCALE[EVAL_B_GRADE_SCALE.length-1];
+  }
+  function computeEvalGradeGeneric(ev){
+    return (ev && ev.evalType === 'B') ? computeEvalGradeB(ev.finalScore, ev.excluded) : computeEvalGrade(ev.finalScore, ev.excluded);
+  }
+  function computeEvalScoresB(v){
+    var base = 0;
+    EVAL_B_ITEMS.forEach(function(it){
+      var rating = (v.itemScores && v.itemScores[it.key]) || 0;
+      base += it.pts * (rating/5);
+    });
+    var reward = 0;
+    EVAL_B_REWARD_ITEMS.forEach(function(it){
+      var p = (v.rewardScores && v.rewardScores[it.key]) || 0;
+      if(p > it.maxPts) p = it.maxPts;
+      if(p < 0) p = 0;
+      reward += p;
+    });
+    if(reward > 20) reward = 20;
+    var penalty = 0;
+    EVAL_B_PENALTY_ITEMS.forEach(function(it){
+      var p = (v.penaltyScores && v.penaltyScores[it.key]) || 0;
+      if(p > it.maxPts) p = it.maxPts;
+      if(p < 0) p = 0;
+      penalty += p;
+    });
+    if(penalty > 20) penalty = 20;
+    var final = base + reward - penalty;
+    return { base:base, reward:reward, penalty:penalty, final:final };
+  }
+
+  function openEvaluationFormB(existing){
+    editingEvaluationId = existing ? existing.id : null;
+    var e = existing || { year:new Date().getFullYear(), itemScores:{}, rewardScores:{}, penaltyScores:{}, evalCategory:'연간평가' };
+    var body = document.getElementById('evaluationFormBody');
+    var isTerminatedEmployee = !!(existing && existing.employeeId && !employees.find(function(x){ return x.id === existing.employeeId; }));
+
+    var html = '';
+    html += '<div class="rule-card" style="background:var(--amber-soft);margin-bottom:14px;"><p style="font-weight:700;">🅱️ TYPE B · 2026년 신규 평가서식</p><p class="savehint" style="margin-top:4px;">성과·역량 중심 100점 기본평가 + Reward(최대 +20) · Penalty(최대 -20)</p></div>';
+
+    if(isTerminatedEmployee){
+      html += '<div class="rule-card" style="background:var(--amber-soft);margin-bottom:14px;">';
+      html += '<p style="font-weight:700;color:var(--brick);">⚠️ 퇴사한 직원의 기록이에요</p>';
+      html += '<p class="savehint" style="margin-top:4px;">'+escapeHtml(existing.employeeName||'이 직원')+'님은 직원 목록에서 삭제됐어요. 기록 보존을 위해 내용은 수정할 수 없고, 삭제만 가능해요.</p>';
+      html += '</div>';
+    }
+
+    html += '<div class="field"><span class="field-label field-label-strong">👤 직원</span>';
+    if(isTerminatedEmployee){
+      html += '<select id="evb_employee" disabled><option selected>'+escapeHtml(existing.employeeName||'(삭제된 직원)')+' (퇴사)</option></select>';
+    }else if(employees.length === 0){
+      html += '<select id="evb_employee" disabled><option>등록된 직원이 없어요 (인사관리 &gt; ⚙️에서 등록)</option></select>';
+    }else{
+      html += '<select id="evb_employee">';
+      employees.forEach(function(emp){
+        html += '<option value="'+emp.id+'"'+(e.employeeId===emp.id?' selected':'')+'>'+escapeHtml(emp.name)+(emp.position?' ('+emp.position+')':'')+'</option>';
+      });
+      html += '</select>';
+    }
+    html += '</div>';
+
+    html += '<div class="row2">';
+    html += '<div class="field"><span class="field-label">평가연도</span><input type="number" id="evb_year" value="'+(e.year||new Date().getFullYear())+'"></div>';
+    html += '<div class="field"><span class="field-label">평가일</span><input type="date" id="evb_evalDate" value="'+escapeHtml(e.evalDate||todayStr())+'"></div>';
+    html += '</div>';
+    html += '<div class="row2">';
+    html += '<div class="field"><span class="field-label">평가자</span><input type="text" id="evb_evaluator" value="'+escapeHtml(e.evaluator||'')+'" placeholder="1차 평가자"></div>';
+    html += '<div class="field"><span class="field-label">2차 평가자</span><input type="text" id="evb_evaluator2" value="'+escapeHtml(e.evaluator2||'')+'" placeholder="선택"></div>';
+    html += '</div>';
+    html += '<div class="field"><span class="field-label">평가구분</span><div class="chiprow" id="evb_category">';
+    ['연간평가','반기평가','수시평가'].forEach(function(c){
+      html += '<button class="chip'+((e.evalCategory||'연간평가')===c?' selected':'')+'" data-val="'+c+'" type="button">'+c+'</button>';
+    });
+    html += '</div></div>';
+
+    html += '<div class="rule-card" style="margin:14px 0;"><p class="savehint" style="margin:0;">평가 원칙: ① 업무성과와 역량 중심 ② 관찰 가능한 행동·결과와 증빙으로 판단 ③ 회식·개인적 호불호 등 업무와 무관한 요소는 평가하지 않음 ④ 장애는 발생 자체가 아니라 개인 귀책 정도를 평가</p></div>';
+
+    html += '<p style="font-size:17px;font-weight:800;color:var(--ink);margin:20px 0 14px;">📊 기본평가 (100점)</p>';
+    var lastArea = null;
+    EVAL_B_ITEMS.forEach(function(it){
+      if(it.area !== lastArea){
+        lastArea = it.area;
+        var areaTotal = EVAL_B_ITEMS.filter(function(x){ return x.area===it.area; }).reduce(function(s,x){ return s+x.pts; },0);
+        html += '<p class="field-label field-label-strong" style="margin-top:18px;">'+(EVAL_B_AREA_ICON[it.area]||'')+' '+it.area+' (최대 '+areaTotal+')</p>';
+      }
+      var rating = (e.itemScores && e.itemScores[it.key]) || 3;
+      html += '<div class="rule-card" style="margin-top:8px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:baseline;"><b>'+escapeHtml(it.label)+'</b><span class="savehint" style="margin:0;">배점 '+it.pts+'</span></div>';
+      html += '<p class="savehint" style="margin-top:2px;">'+escapeHtml(it.core)+'</p>';
+      html += '<div class="chiprow evb-item-chips" data-key="'+it.key+'" style="margin-top:8px;">';
+      for(var n=1;n<=5;n++){
+        html += '<button class="chip'+(rating===n?' selected':'')+'" data-val="'+n+'" type="button">'+n+'점</button>';
+      }
+      html += '</div>';
+      html += '<p class="savehint evb-item-desc" data-key="'+it.key+'" style="margin-top:6px;color:var(--amber);">'+escapeHtml(it.desc[rating-1]||'')+'</p>';
+      html += '<p class="savehint evb-item-score" data-key="'+it.key+'" style="margin-top:2px;font-weight:700;">환산점수: '+(it.pts*rating/5).toFixed(1)+' / '+it.pts+'</p>';
+      html += '</div>';
+    });
+
+    html += '<div class="rule-card" style="margin:14px 0;"><div style="display:flex;justify-content:space-between;"><span>기본평가 합계</span><b id="evb_baseDisplay">0 / 100</b></div></div>';
+
+    html += '<p class="field-label field-label-strong" style="margin-top:8px;">🏆 Reward / 가점 (최대 +20)</p>';
+    EVAL_B_REWARD_ITEMS.forEach(function(it){
+      var val = (e.rewardScores && e.rewardScores[it.key]) || 0;
+      html += '<div class="rule-card" style="margin-top:8px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:baseline;"><b>'+escapeHtml(it.label)+'</b><span class="savehint" style="margin:0;">최대 +'+it.maxPts+'</span></div>';
+      html += '<p class="savehint" style="margin-top:2px;">'+escapeHtml(it.criteria)+'</p>';
+      if(it.stages && it.stages.length){
+        html += '<p class="savehint" style="margin-top:2px;color:var(--ink-faint);">단계: '+it.stages.map(function(s,i){ return (i+1)+'단계 '+s; }).join(' · ')+'</p>';
+      }
+      html += '<p class="savehint" style="margin-top:2px;">필요 증빙: '+escapeHtml(it.evidence)+'</p>';
+      html += '<div class="field" style="margin-top:6px;"><span class="field-label">적용 점수</span><input type="number" class="evb-reward-input" data-key="'+it.key+'" min="0" max="'+it.maxPts+'" step="1" value="'+val+'"></div>';
+      html += '</div>';
+    });
+    html += '<p class="savehint" style="font-weight:700;" id="evb_rewardTotal">Reward 합계: 0 / 20</p>';
+
+    html += '<p class="field-label field-label-strong" style="margin-top:14px;color:var(--brick);">🚨 Penalty / 감점 (최대 -20)</p>';
+    html += '<p class="savehint" style="margin-top:-6px;">장애 발생 자체는 감점하지 않으며 개인 귀책 정도만 반영해요.</p>';
+    EVAL_B_PENALTY_ITEMS.forEach(function(it){
+      var val = (e.penaltyScores && e.penaltyScores[it.key]) || 0;
+      html += '<div class="rule-card" style="margin-top:8px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:baseline;"><b>'+escapeHtml(it.label)+'</b><span class="savehint" style="margin:0;color:var(--brick);">최대 -'+it.maxPts+'</span></div>';
+      html += '<p class="savehint" style="margin-top:2px;">'+escapeHtml(it.principle)+'</p>';
+      html += '<p class="savehint" style="margin-top:2px;color:var(--ink-faint);">경미 '+it.ranges.minor+' · 보통 '+it.ranges.moderate+' · 중대 '+it.ranges.major+'</p>';
+      html += '<p class="savehint" style="margin-top:2px;">필요 증빙: '+escapeHtml(it.evidence)+'</p>';
+      html += '<div class="field" style="margin-top:6px;"><span class="field-label">적용 감점 (양수로 입력)</span><input type="number" class="evb-penalty-input" data-key="'+it.key+'" min="0" max="'+it.maxPts+'" step="1" value="'+val+'"></div>';
+      html += '</div>';
+    });
+    html += '<p class="savehint" style="font-weight:700;color:var(--brick);" id="evb_penaltyTotal">Penalty 합계: 0 / -20</p>';
+
+    html += '<label class="checklist-item" style="margin-top:14px;"><input type="checkbox" id="evb_excluded"'+(e.excluded?' checked':'')+'><span>이 평가는 등급 산정에서 제외 (N등급)</span></label>';
+
+    html += '<div class="verdict-box" style="margin:16px 0;"><p class="verdict-pct" style="font-weight:700;">최종점수</p><p class="verdict-label" id="evb_finalDisplay" style="color:var(--amber);">0</p>';
+    html += '<p style="font-size:28px;font-weight:800;margin:6px 0 0;" id="evb_gradeDisplay">-</p>';
+    html += '<p class="savehint" style="margin-top:2px;">S 105↑ · A 95↑ · B 85↑ · C 75↑ · D 74↓ · N 평가제외</p>';
+    html += '</div>';
+
+    html += '<div class="field"><span class="field-label field-label-strong">💪 강점</span><textarea id="evb_strengths" placeholder="이 직원의 강점을 남겨주세요">'+escapeHtml(e.strengths||'')+'</textarea></div>';
+    html += '<div class="field"><span class="field-label field-label-strong">📉 약점</span><textarea id="evb_weaknesses" placeholder="개선이 필요한 부분을 남겨주세요">'+escapeHtml(e.weaknesses||'')+'</textarea></div>';
+    html += '<div class="field"><span class="field-label">비고</span><textarea id="evb_note" placeholder="추가로 남길 내용">'+escapeHtml(e.note||'')+'</textarea></div>';
+
+    html += '<div class="row2">';
+    html += '<button class="cancelbtn" id="evb_cancelBtn" type="button">'+(isTerminatedEmployee?'닫기':'취소')+'</button>';
+    if(!isTerminatedEmployee){
+      html += '<button class="savebtn" id="evb_saveBtn" type="button">'+(existing?'수정 저장':'평가 저장')+'</button>';
+    }
+    html += '</div>';
+    if(existing){
+      html += '<button class="danger" id="evb_deleteBtn" type="button" style="width:100%;margin-top:10px;">이 평가 삭제</button>';
+    }
+
+    if(isTerminatedEmployee){
+      html = html.replace(/<(input|select|textarea)((?:(?!disabled)[^>])*)>/g, function(m, tag, attrs){
+        return '<'+tag+attrs+' disabled>';
+      });
+    }
+
+    body.innerHTML = html;
+
+    function refreshTotalsB(){
+      var itemScores = {};
+      document.querySelectorAll('.evb-item-chips').forEach(function(row){
+        var key = row.getAttribute('data-key');
+        var sel = row.querySelector('.chip.selected');
+        itemScores[key] = sel ? parseInt(sel.getAttribute('data-val'),10) : 0;
+      });
+      var rewardScores = {};
+      document.querySelectorAll('.evb-reward-input').forEach(function(inp){
+        rewardScores[inp.getAttribute('data-key')] = parseFloat(inp.value) || 0;
+      });
+      var penaltyScores = {};
+      document.querySelectorAll('.evb-penalty-input').forEach(function(inp){
+        penaltyScores[inp.getAttribute('data-key')] = parseFloat(inp.value) || 0;
+      });
+      var s = computeEvalScoresB({ itemScores:itemScores, rewardScores:rewardScores, penaltyScores:penaltyScores });
+      document.getElementById('evb_baseDisplay').textContent = s.base.toFixed(1).replace(/\.0$/,'') + ' / 100';
+      document.getElementById('evb_rewardTotal').textContent = 'Reward 합계: ' + s.reward.toFixed(0) + ' / 20';
+      document.getElementById('evb_penaltyTotal').textContent = 'Penalty 합계: -' + s.penalty.toFixed(0) + ' / -20';
+      document.getElementById('evb_finalDisplay').textContent = s.final.toFixed(1).replace(/\.0$/,'');
+      var excluded = document.getElementById('evb_excluded').checked;
+      var g = computeEvalGradeB(s.final, excluded);
+      var gradeEl = document.getElementById('evb_gradeDisplay');
+      gradeEl.textContent = g.grade;
+      gradeEl.style.color = g.color;
+    }
+
+    document.querySelectorAll('.evb-item-chips').forEach(function(row){
+      var key = row.getAttribute('data-key');
+      var item = EVAL_B_ITEMS.find(function(x){ return x.key === key; });
+      row.querySelectorAll('.chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          row.querySelectorAll('.chip').forEach(function(x){ x.classList.remove('selected'); });
+          c.classList.add('selected');
+          var n = parseInt(c.getAttribute('data-val'),10);
+          var descEl = document.querySelector('.evb-item-desc[data-key="'+key+'"]');
+          if(descEl) descEl.textContent = item.desc[n-1] || '';
+          var scoreEl = document.querySelector('.evb-item-score[data-key="'+key+'"]');
+          if(scoreEl) scoreEl.textContent = '환산점수: ' + (item.pts*n/5).toFixed(1) + ' / ' + item.pts;
+          refreshTotalsB();
+        });
+      });
+    });
+    document.querySelectorAll('#evb_category .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        document.querySelectorAll('#evb_category .chip').forEach(function(x){ x.classList.remove('selected'); });
+        c.classList.add('selected');
+      });
+    });
+    document.querySelectorAll('.evb-reward-input, .evb-penalty-input').forEach(function(inp){
+      inp.addEventListener('input', function(){
+        var max = parseFloat(inp.getAttribute('max'));
+        if(parseFloat(inp.value) > max) inp.value = max;
+        if(parseFloat(inp.value) < 0) inp.value = 0;
+        refreshTotalsB();
+      });
+    });
+    document.getElementById('evb_excluded').addEventListener('change', refreshTotalsB);
+    refreshTotalsB();
+
+    document.getElementById('evb_cancelBtn').addEventListener('click', function(){ closeSheet('evaluationFormSheet'); });
+    var saveBtnEl = document.getElementById('evb_saveBtn');
+    if(saveBtnEl){
+      saveBtnEl.addEventListener('click', saveEvaluationFormB);
+    }
+    var delBtn = document.getElementById('evb_deleteBtn');
+    if(delBtn){
+      delBtn.addEventListener('click', async function(){
+        evaluations = evaluations.filter(function(x){ return x.id !== editingEvaluationId; });
+        await saveEvaluations();
+        closeSheet('evaluationFormSheet');
+        renderEvaluationScreen();
+      });
+    }
+    openSheet('evaluationFormSheet');
+  }
+
+  async function saveEvaluationFormB(){
+    var empEl = document.getElementById('evb_employee');
+    if(!empEl || empEl.disabled){
+      empEl && empEl.focus();
+      return;
+    }
+    var now = new Date().toISOString();
+    var itemScores = {};
+    document.querySelectorAll('.evb-item-chips').forEach(function(row){
+      var key = row.getAttribute('data-key');
+      var sel = row.querySelector('.chip.selected');
+      itemScores[key] = sel ? parseInt(sel.getAttribute('data-val'),10) : 0;
+    });
+    var rewardScores = {};
+    document.querySelectorAll('.evb-reward-input').forEach(function(inp){
+      rewardScores[inp.getAttribute('data-key')] = parseFloat(inp.value) || 0;
+    });
+    var penaltyScores = {};
+    document.querySelectorAll('.evb-penalty-input').forEach(function(inp){
+      penaltyScores[inp.getAttribute('data-key')] = parseFloat(inp.value) || 0;
+    });
+    var s = computeEvalScoresB({ itemScores:itemScores, rewardScores:rewardScores, penaltyScores:penaltyScores });
+    var excluded = document.getElementById('evb_excluded').checked;
+    var grade = computeEvalGradeB(s.final, excluded).grade;
+    var selectedEmp = employees.find(function(x){ return x.id === empEl.value; });
+    var categoryChip = document.querySelector('#evb_category .chip.selected');
+    var payload = {
+      id: editingEvaluationId || uid(),
+      evalType: 'B',
+      employeeId: empEl.value,
+      employeeName: selectedEmp ? selectedEmp.name : ((evaluations.find(function(x){return x.id===editingEvaluationId;})||{}).employeeName || ''),
+      year: parseInt(document.getElementById('evb_year').value, 10) || new Date().getFullYear(),
+      evalDate: document.getElementById('evb_evalDate').value,
+      evaluator: document.getElementById('evb_evaluator').value.trim(),
+      evaluator2: document.getElementById('evb_evaluator2').value.trim(),
+      evalCategory: categoryChip ? categoryChip.getAttribute('data-val') : '연간평가',
+      note: document.getElementById('evb_note').value.trim(),
+      strengths: document.getElementById('evb_strengths').value.trim(),
+      weaknesses: document.getElementById('evb_weaknesses').value.trim(),
+      excluded: excluded,
+      grade: grade,
+      itemScores: itemScores,
+      rewardScores: rewardScores,
+      penaltyScores: penaltyScores,
+      baseScore: s.base,
+      reward: s.reward,
+      penalty: s.penalty,
+      finalScore: s.final,
+      createdAt: editingEvaluationId ? (evaluations.find(function(x){return x.id===editingEvaluationId;})||{}).createdAt || now : now,
+      updatedAt: now
+    };
+    if(editingEvaluationId){
+      var idx = evaluations.findIndex(function(x){ return x.id === editingEvaluationId; });
+      if(idx >= 0) evaluations[idx] = payload; else evaluations.push(payload);
+    }else{
+      evaluations.push(payload);
+    }
+    await saveEvaluations();
+    closeSheet('evaluationFormSheet');
+    renderEvaluationScreen();
+  }
+
   function employeeRowToObject(row){
     return Object.assign({
       id: row.id,
@@ -7972,6 +8433,10 @@
       document.getElementById('evalGradeTableScreen').classList.remove('open');
     });
     document.getElementById('evaluationFormCloseBtn').addEventListener('click', function(){ closeSheet('evaluationFormSheet'); });
+    document.getElementById('evalTypeChooserCloseBtn').addEventListener('click', function(){ closeSheet('evalTypeChooserSheet'); });
+    document.getElementById('evalTypeChooserCancelBtn').addEventListener('click', function(){ closeSheet('evalTypeChooserSheet'); });
+    document.getElementById('evalTypeChooseABtn').addEventListener('click', function(){ closeSheet('evalTypeChooserSheet'); openEvaluationForm(null); });
+    document.getElementById('evalTypeChooseBBtn').addEventListener('click', function(){ closeSheet('evalTypeChooserSheet'); openEvaluationFormB(null); });
     document.getElementById('yearPrevBtn').addEventListener('click', function(){
       pickerYear -= 1;
       var now = new Date();
