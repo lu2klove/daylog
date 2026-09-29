@@ -1070,22 +1070,10 @@
       <button class="side-back" id="teamDinnerBtn" type="button" aria-label="회식관리">🍻</button>
       <button class="side-back" id="hrSettingsBtn" type="button" aria-label="직원 관리">⚙️</button>
       <button class="side-back" id="hrEvalBtn" type="button" aria-label="인사평가">📋</button>
-      <button class="side-back" id="hrStatsBtn" type="button" aria-label="통계">📊</button>
     </div>
   </div>
   <div class="side-scroll-wrap">
     <div class="side-body" id="hrBody"></div>
-  </div>
-</div>
-
-<div class="side-screen" id="hrStatsScreen">
-  <div class="side-header">
-    <button class="side-back" id="hrStatsBackBtn" type="button">‹ 뒤로</button>
-    <span class="side-title">📊 통계</span>
-    <span style="width:44px;"></span>
-  </div>
-  <div class="side-scroll-wrap">
-    <div class="side-body" id="hrStatsBody"></div>
   </div>
 </div>
 
@@ -7980,6 +7968,7 @@
   var statsPeriodMode = 'all';
   var hrPeriodMode = 'month';
   var hrTypeMode = 'all';
+  var hrStatsViewTab = 'typeEmp';
   var hrPage = 1;
   var hrEmployeeFilter = '';
   var HR_PAGE_SIZE = 10;
@@ -8239,6 +8228,14 @@
     });
     html += '</div>';
 
+    html += '<div class="chiprow" id="hrStatsViewTabChips" style="margin-bottom:16px;">';
+    html += '<button class="chip'+(hrStatsViewTab==='typeEmp'?' selected':'')+'" data-view="typeEmp" type="button">유형별 · 직원별 통계</button>';
+    html += '<button class="chip'+(hrStatsViewTab==='org'?' selected':'')+'" data-view="org" type="button">회사/직무/직급 별 통계</button>';
+    html += '</div>';
+
+    if(hrStatsViewTab === 'org'){
+      html += renderHrOrgStatsHTML();
+    }else{
     var typeCounts = {};
     attendanceTypes.forEach(function(t){ typeCounts[t] = 0; });
     filtered.forEach(function(e){
@@ -8322,6 +8319,7 @@
       html += '</tr>';
       html += '</tbody></table></div>';
     }
+    }
 
     var listFiltered = filtered;
     if(hrEmployeeFilter){
@@ -8391,6 +8389,12 @@
         renderHrScreen();
       });
     });
+    document.querySelectorAll('#hrStatsViewTabChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        hrStatsViewTab = c.getAttribute('data-view');
+        renderHrScreen();
+      });
+    });
     body.querySelectorAll('.hr-emp-name-cell').forEach(function(cell){
       cell.addEventListener('click', function(){
         var name = cell.getAttribute('data-hr-emp');
@@ -8434,151 +8438,8 @@
     });
   }
 
-  // ---------- 인사관리 > 통계 (유형별·직원별 / 회사·직무·직급별 탭) ----------
-  var hrStatsTab = 'typeEmp';
-  var hrStatsPeriodMode = 'month';
-  var hrStatsTypeMode = 'all';
-
-  function hrStatsFilteredEntries(){
-    var range = getPeriodRange(hrStatsPeriodMode);
-    return entries.filter(function(e){
-      if(e.type !== 'attendance') return false;
-      if(hrStatsTypeMode !== 'all' && e.workType !== hrStatsTypeMode) return false;
-      if(range && (e.date < range.start || e.date > range.end)) return false;
-      return true;
-    });
-  }
-
-  function renderHrStatsScreen(){
-    var body = document.getElementById('hrStatsBody');
-    var html = '';
-    html += '<div class="chiprow" id="hrStatsTabChips" style="margin-bottom:18px;">';
-    html += '<button class="chip'+(hrStatsTab==='typeEmp'?' selected':'')+'" data-tab="typeEmp" type="button">유형별 · 직원별 통계</button>';
-    html += '<button class="chip'+(hrStatsTab==='org'?' selected':'')+'" data-tab="org" type="button">회사/직무/직급 별 통계</button>';
-    html += '</div>';
-
-    if(hrStatsTab === 'org'){
-      html += renderHrStatsOrgHTML();
-    }else{
-      html += renderHrStatsTypeEmpHTML();
-    }
-
-    body.innerHTML = html;
-    body.querySelectorAll('#hrStatsTabChips .chip').forEach(function(c){
-      c.addEventListener('click', function(){
-        hrStatsTab = c.getAttribute('data-tab');
-        renderHrStatsScreen();
-      });
-    });
-
-    if(hrStatsTab === 'typeEmp'){
-      wireHrStatsTypeEmpEvents(body);
-    }
-  }
-
-  function renderHrStatsTypeEmpHTML(){
-    var filtered = hrStatsFilteredEntries();
-    var html = '';
-    html += '<p class="field-label field-label-strong">📅 기간</p>';
-    html += '<div class="chiprow" id="hrStatsPeriodChips" style="margin-bottom:16px;">';
-    [['lastweek','전주'],['week','이번주'],['lastmonth','전달'],['month','이번달'],['quarter','분기'],['half','반기'],['year','연간']].forEach(function(p){
-      html += '<button class="chip'+(hrStatsPeriodMode===p[0]?' selected':'')+'" data-val="'+p[0]+'" type="button">'+p[1]+'</button>';
-    });
-    html += '</div>';
-
-    html += '<p class="field-label field-label-strong">🏷️ 유형</p>';
-    html += '<div class="chiprow" id="hrStatsTypeChips" style="margin-bottom:20px;">';
-    html += '<button class="chip'+(hrStatsTypeMode==='all'?' selected':'')+'" data-val="all" type="button">전체</button>';
-    attendanceTypes.forEach(function(t){
-      html += '<button class="chip'+(hrStatsTypeMode===t?' selected':'')+'" data-val="'+t+'" type="button">'+t+'</button>';
-    });
-    html += '</div>';
-
-    var typeCounts = {};
-    attendanceTypes.forEach(function(t){ typeCounts[t] = 0; });
-    filtered.forEach(function(e){
-      if(typeCounts[e.workType] != null) typeCounts[e.workType]++;
-    });
-    var total = filtered.length;
-
-    html += '<div class="rule-card" style="margin-bottom:20px;">';
-    if(total === 0){
-      html += '<p class="empty-inline">이 기간엔 근무기록이 없어요.</p>';
-    }else{
-      var gradientParts = [];
-      var cumPct = 0;
-      attendanceTypes.forEach(function(t){
-        if(typeCounts[t] === 0) return;
-        var pct = typeCounts[t] / total * 100;
-        gradientParts.push(attendanceTypeColor(t) + ' ' + cumPct + '% ' + (cumPct+pct) + '%');
-        cumPct += pct;
-      });
-      html += '<div style="display:flex;justify-content:center;margin-bottom:16px;">';
-      html += '<div style="width:160px;height:160px;border-radius:50%;background:conic-gradient('+gradientParts.join(', ')+');display:flex;align-items:center;justify-content:center;">';
-      html += '<div style="width:100px;height:100px;border-radius:50%;background:var(--paper-raised);display:flex;flex-direction:column;align-items:center;justify-content:center;">';
-      html += '<span style="font-size:20px;font-weight:700;">'+total+'</span><span style="font-size:11px;color:var(--ink-faint);">건</span>';
-      html += '</div></div></div>';
-      attendanceTypes.forEach(function(t){
-        if(typeCounts[t] === 0) return;
-        html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;">';
-        html += '<span style="width:10px;height:10px;border-radius:50%;background:'+attendanceTypeColor(t)+';display:inline-block;flex-shrink:0;"></span>';
-        html += '<span style="flex:1;">'+t+'</span><b>'+typeCounts[t]+'건 ('+(typeCounts[t]/total*100).toFixed(0)+'%)</b>';
-        html += '</div>';
-      });
-    }
-    html += '</div>';
-
-    if(total > 0){
-      var usedTypes = attendanceTypes.filter(function(t){ return typeCounts[t] > 0; });
-      var empCounts = {};
-      var empOrder = [];
-      filtered.forEach(function(e){
-        var emp = employees.find(function(x){ return x.id === e.employeeId; });
-        var name = emp ? emp.name : '(직원 정보 없음)';
-        if(!empCounts[name]){ empCounts[name] = {}; empOrder.push(name); usedTypes.forEach(function(t){ empCounts[name][t]=0; }); }
-        if(empCounts[name][e.workType] != null) empCounts[name][e.workType]++;
-      });
-      empOrder.sort(function(a,b){ return stripEmojiForCompare(a).localeCompare(stripEmojiForCompare(b), 'ko'); });
-      html += '<p class="card-title">유형별 · 직원별 통계</p>';
-      html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:'+(120+usedTypes.length*70)+'px;">';
-      html += '<thead><tr><th>직원</th>';
-      usedTypes.forEach(function(t){ html += '<th>'+t+'</th>'; });
-      html += '<th>합계</th></tr></thead><tbody>';
-      empOrder.forEach(function(name){
-        html += '<tr><td style="font-weight:700;">'+escapeHtml(name)+'</td>';
-        var rowTotal = 0;
-        usedTypes.forEach(function(t){
-          var c = empCounts[name][t] || 0;
-          rowTotal += c;
-          html += '<td>'+c+'</td>';
-        });
-        html += '<td style="font-weight:700;">'+rowTotal+'</td>';
-        html += '</tr>';
-      });
-      html += '<tr style="font-weight:700;"><td>합계</td>';
-      usedTypes.forEach(function(t){ html += '<td>'+typeCounts[t]+'</td>'; });
-      html += '<td>'+total+'</td></tr>';
-      html += '</tbody></table></div>';
-    }
-    return html;
-  }
-
-  function wireHrStatsTypeEmpEvents(body){
-    body.querySelectorAll('#hrStatsPeriodChips .chip').forEach(function(c){
-      c.addEventListener('click', function(){
-        hrStatsPeriodMode = c.getAttribute('data-val');
-        renderHrStatsScreen();
-      });
-    });
-    body.querySelectorAll('#hrStatsTypeChips .chip').forEach(function(c){
-      c.addEventListener('click', function(){
-        hrStatsTypeMode = c.getAttribute('data-val');
-        renderHrStatsScreen();
-      });
-    });
-  }
-
-  function renderHrStatsOrgHTML(){
+  // ---------- 인사관리 화면 내 "회사/직무/직급 별 통계" 탭 콘텐츠 ----------
+  function renderHrOrgStatsHTML(){
     var active = computeEmployeeStats().active;
     var html = '';
     if(active.length === 0){
@@ -9153,6 +9014,7 @@
     document.getElementById('hrOpenBtn').addEventListener('click', function(){
       hrPeriodMode = 'month';
       hrTypeMode = 'all';
+      hrStatsViewTab = 'typeEmp';
       hrEmployeeFilter = '';
       renderHrScreen();
       document.getElementById('hrScreen').classList.add('open');
@@ -9200,16 +9062,6 @@
     document.getElementById('hrEvalBtn').addEventListener('click', function(){
       renderEvaluationScreen();
       document.getElementById('evaluationScreen').classList.add('open');
-    });
-    document.getElementById('hrStatsBtn').addEventListener('click', function(){
-      hrStatsTab = 'typeEmp';
-      hrStatsPeriodMode = 'month';
-      hrStatsTypeMode = 'all';
-      renderHrStatsScreen();
-      document.getElementById('hrStatsScreen').classList.add('open');
-    });
-    document.getElementById('hrStatsBackBtn').addEventListener('click', function(){
-      document.getElementById('hrStatsScreen').classList.remove('open');
     });
     document.getElementById('evaluationBackBtn').addEventListener('click', function(){
       document.getElementById('evaluationScreen').classList.remove('open');
