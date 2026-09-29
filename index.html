@@ -1070,10 +1070,22 @@
       <button class="side-back" id="teamDinnerBtn" type="button" aria-label="회식관리">🍻</button>
       <button class="side-back" id="hrSettingsBtn" type="button" aria-label="직원 관리">⚙️</button>
       <button class="side-back" id="hrEvalBtn" type="button" aria-label="인사평가">📋</button>
+      <button class="side-back" id="hrStatsBtn" type="button" aria-label="통계">📊</button>
     </div>
   </div>
   <div class="side-scroll-wrap">
     <div class="side-body" id="hrBody"></div>
+  </div>
+</div>
+
+<div class="side-screen" id="hrStatsScreen">
+  <div class="side-header">
+    <button class="side-back" id="hrStatsBackBtn" type="button">‹ 뒤로</button>
+    <span class="side-title">📊 통계</span>
+    <span style="width:44px;"></span>
+  </div>
+  <div class="side-scroll-wrap">
+    <div class="side-body" id="hrStatsBody"></div>
   </div>
 </div>
 
@@ -1146,7 +1158,10 @@
   <div class="side-header">
     <button class="side-back" id="evaluationBackBtn" type="button">‹ 뒤로</button>
     <span class="side-title">📋 개인인사평가</span>
-    <button class="side-back" id="evalGradeTableBtn" type="button" aria-label="인사평가등급표">🧮</button>
+    <div style="display:flex;gap:6px;">
+      <button class="side-back" id="evalGradeTableBtn" type="button" aria-label="인사평가등급표">🧮</button>
+      <button class="side-back" id="taskPerfBtn" type="button" aria-label="과업 실적">🎯</button>
+    </div>
   </div>
   <div class="side-scroll-wrap">
     <div class="side-body" id="evaluationBody"></div>
@@ -1161,6 +1176,17 @@
   </div>
   <div class="side-scroll-wrap">
     <div class="side-body" id="evalGradeTableBody"></div>
+  </div>
+</div>
+
+<div class="side-screen" id="taskPerfScreen">
+  <div class="side-header">
+    <button class="side-back" id="taskPerfBackBtn" type="button">‹ 뒤로</button>
+    <span class="side-title">🎯 과업 실적</span>
+    <span style="width:44px;"></span>
+  </div>
+  <div class="side-scroll-wrap">
+    <div class="side-body" id="taskPerfBody"></div>
   </div>
 </div>
 
@@ -1189,6 +1215,14 @@
     </button>
     <button class="cancelbtn" id="evalTypeChooserCancelBtn" type="button" style="width:100%;margin-top:14px;">취소</button>
   </div>
+</div>
+
+<div class="bottom-sheet" id="taskPerfFormSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">🎯 과업 등록</span>
+    <button class="sheet-close" id="taskPerfFormCloseBtn" type="button">✕</button>
+  </div>
+  <div id="taskPerfFormBody"></div>
 </div>
 
 <div class="bottom-sheet" id="attendanceSheet">
@@ -3160,6 +3194,60 @@
     }catch(e){ reportSyncError('evaluations 저장', e); }
   }
 
+  // ---------- 과업 실적 ----------
+  var taskPerformances = []; // [{id, employeeId, employeeName, title, project, job, description, yearlyRecords:[{id,year,status,progress,score,note}], createdAt, updatedAt}]
+  function taskPerfRowToObject(row){
+    return Object.assign({
+      id: row.id,
+      employeeId: row.employee_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }, row.data || {});
+  }
+  function taskPerfObjectToRow(obj, userId){
+    var rest = Object.assign({}, obj);
+    delete rest.id; delete rest.employeeId; delete rest.createdAt; delete rest.updatedAt;
+    return {
+      id: obj.id,
+      user_id: userId,
+      employee_id: obj.employeeId || null,
+      data: rest,
+      updated_at: obj.updatedAt || new Date().toISOString()
+    };
+  }
+  async function loadTaskPerformances(){
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid){ reportSyncError('과업실적 불러오기', '로그인 세션을 찾을 수 없어요'); return []; }
+      var res = await supabaseClient.from('task_performances').select('*').eq('user_id', uid);
+      if(res.error){ reportSyncError('과업실적 불러오기', res.error); return []; }
+      return res.data.map(taskPerfRowToObject);
+    }catch(e){ reportSyncError('과업실적 불러오기', e); return []; }
+  }
+  async function saveTaskPerformances(){
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid){ reportSyncError('과업실적 저장', '로그인 세션을 찾을 수 없어요'); return; }
+      var rows = taskPerformances.map(function(x){ return taskPerfObjectToRow(x, uid); });
+      if(rows.length > 0){
+        var upsertRes = await supabaseClient.from('task_performances').upsert(rows, { onConflict: 'id' });
+        if(upsertRes.error){ reportSyncError('과업실적 저장', upsertRes.error); return; }
+      }
+      var existingRes = await supabaseClient.from('task_performances').select('id').eq('user_id', uid);
+      if(existingRes.error){
+        reportSyncError('과업실적 조회(삭제 처리용)', existingRes.error);
+      }else{
+        var currentIds = {};
+        taskPerformances.forEach(function(x){ currentIds[x.id] = true; });
+        var idsToDelete = existingRes.data.filter(function(r){ return !currentIds[r.id]; }).map(function(r){ return r.id; });
+        if(idsToDelete.length > 0){
+          var delRes = await supabaseClient.from('task_performances').delete().in('id', idsToDelete);
+          if(delRes.error) reportSyncError('과업실적 삭제', delRes.error);
+        }
+      }
+    }catch(e){ reportSyncError('과업실적 저장', e); }
+  }
+
   function renderEmployeeOptionsScreen(){
     var body = document.getElementById('employeeOptionsBody');
     var html = '';
@@ -4800,7 +4888,7 @@
       return h;
     }
     var html = '';
-    html += '<div class="field"><span class="field-label field-label-strong">👤 이름</span><input type="text" id="my_name" placeholder="예: 홍길동" value="'+escapeHtml(existing.name||'')+'"></div>';
+    html += '<div class="field"><span class="field-label field-label-strong">👤 이름</span><input type="text" id="my_name" value="'+escapeHtml(existing.name||'')+'" readonly style="background:var(--paper-raised);color:var(--ink-faint);"><p class="savehint" style="margin-top:2px;">이름은 관리자만 변경할 수 있어요.</p></div>';
     html += '<div class="field"><span class="field-label">성별</span><div class="chiprow" id="my_genderChips">';
     ['남','여'].forEach(function(g){
       html += '<button class="chip'+(existing.gender===g?' selected':'')+'" data-gender="'+g+'" type="button">'+g+'</button>';
@@ -5590,6 +5678,271 @@
       });
     });
   }
+
+  // ---------- 과업 실적 (주요 과업 등록 및 연도별 달성/진척/평가 관리) ----------
+  var editingTaskPerfId = null;
+  var currentTaskYearlyRecords = [];
+  var taskPerfEmployeeFilter = 'all';
+  var TASK_PERF_STATUS_OPTIONS = ['완료','진행중','미달성'];
+
+  function taskPerfStatusColor(status){
+    if(status === '완료') return 'var(--pine)';
+    if(status === '미달성') return 'var(--brick)';
+    return 'var(--amber)';
+  }
+
+  function renderTaskPerfScreen(){
+    var body = document.getElementById('taskPerfBody');
+    var html = '';
+    html += '<button class="savebtn" id="addTaskPerfBtn" type="button" style="width:100%;margin-bottom:16px;">+ 새 과업 등록</button>';
+
+    if(employees.length > 0){
+      html += '<div class="chiprow" id="taskPerfEmpChips" style="margin-bottom:16px;">';
+      html += '<button class="chip'+(taskPerfEmployeeFilter==='all'?' selected':'')+'" data-val="all" type="button">전체</button>';
+      employees.forEach(function(emp){
+        html += '<button class="chip'+(taskPerfEmployeeFilter===emp.id?' selected':'')+'" data-val="'+emp.id+'" type="button">'+escapeHtml(emp.name)+'</button>';
+      });
+      html += '</div>';
+    }
+
+    var filtered = taskPerfEmployeeFilter === 'all' ? taskPerformances : taskPerformances.filter(function(t){ return t.employeeId === taskPerfEmployeeFilter; });
+    var sorted = filtered.slice().sort(function(a,b){ return (b.updatedAt||'') < (a.updatedAt||'') ? -1 : 1; });
+
+    if(sorted.length === 0){
+      html += '<p class="empty-inline">등록된 과업이 없어요.</p>';
+    }else{
+      sorted.forEach(function(t){
+        var emp = employees.find(function(x){ return x.id === t.employeeId; });
+        var years = (t.yearlyRecords||[]).slice().sort(function(a,b){ return (b.year||0) - (a.year||0); });
+        var latest = years[0];
+        html += '<div class="rule-card" data-taskperf-row="'+t.id+'" style="margin-bottom:10px;cursor:pointer;">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">';
+        html += '<div>';
+        html += '<p style="font-weight:700;font-size:14.5px;">'+escapeHtml(t.title||'')+'</p>';
+        html += '<p style="font-size:12px;color:var(--ink-faint);margin-top:3px;">'+(emp?escapeHtml(emp.name):(t.employeeName?escapeHtml(t.employeeName)+' (삭제된 직원)':'-'))+(t.project?' · 📁 '+escapeHtml(t.project):'')+(t.job?' · 🛠️ '+escapeHtml(t.job):'')+'</p>';
+        html += '</div>';
+        if(latest){
+          html += '<span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:8px;flex-shrink:0;background:'+taskPerfStatusColor(latest.status)+'22;color:'+taskPerfStatusColor(latest.status)+';">'+(latest.year||'')+'년 '+escapeHtml(latest.status||'-')+'</span>';
+        }
+        html += '</div>';
+        if(years.length > 0){
+          html += '<p class="savehint" style="margin-top:6px;">연도별 기록 '+years.length+'건'+(latest?(' · 최근 진척률 '+(latest.progress!=null?latest.progress:'-')+'% · 평가점수 '+(latest.score!=null?latest.score:'-')):'')+'</p>';
+        }
+        html += '</div>';
+      });
+    }
+    body.innerHTML = html;
+
+    document.getElementById('addTaskPerfBtn').addEventListener('click', function(){ openTaskPerfForm(null); });
+    var empChipsEl = document.getElementById('taskPerfEmpChips');
+    if(empChipsEl){
+      empChipsEl.querySelectorAll('.chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          taskPerfEmployeeFilter = c.getAttribute('data-val');
+          renderTaskPerfScreen();
+        });
+      });
+    }
+    body.querySelectorAll('[data-taskperf-row]').forEach(function(row){
+      row.addEventListener('click', function(){
+        var t = taskPerformances.find(function(x){ return x.id === row.getAttribute('data-taskperf-row'); });
+        if(t) openTaskPerfForm(t);
+      });
+    });
+  }
+
+  function openTaskPerfForm(existing){
+    editingTaskPerfId = existing ? existing.id : null;
+    currentTaskYearlyRecords = existing ? (existing.yearlyRecords||[]).slice() : [];
+    var e = existing || {};
+    var isTerminatedEmployee = !!(existing && existing.employeeId && !employees.find(function(x){ return x.id === existing.employeeId; }));
+    var body = document.getElementById('taskPerfFormBody');
+    var html = '';
+    if(isTerminatedEmployee){
+      html += '<div class="rule-card" style="background:var(--amber-soft);margin-bottom:14px;">';
+      html += '<p style="font-weight:700;color:var(--brick);">⚠️ 퇴사한 직원의 과업이에요</p>';
+      html += '<p class="savehint" style="margin-top:4px;">'+escapeHtml(existing.employeeName||'이 직원')+'님은 직원 목록에서 삭제됐어요. 기록 보존을 위해 내용은 수정할 수 없고, 삭제만 가능해요.</p>';
+      html += '</div>';
+    }
+    html += '<div class="field"><span class="field-label field-label-strong">👤 담당 직원</span>';
+    if(isTerminatedEmployee){
+      html += '<select id="tp_employee" disabled><option selected>'+escapeHtml(existing.employeeName||'(삭제된 직원)')+' (퇴사)</option></select>';
+    }else if(employees.length === 0){
+      html += '<select id="tp_employee" disabled><option>등록된 직원이 없어요 (인사관리 &gt; ⚙️에서 등록)</option></select>';
+    }else{
+      html += '<select id="tp_employee">';
+      employees.forEach(function(emp){
+        html += '<option value="'+emp.id+'"'+(e.employeeId===emp.id?' selected':'')+'>'+escapeHtml(emp.name)+(emp.position?' ('+emp.position+')':'')+'</option>';
+      });
+      html += '</select>';
+    }
+    html += '</div>';
+    html += '<div class="field"><span class="field-label field-label-strong">🎯 과업명</span><input type="text" id="tp_title" placeholder="예: 신규 결제 시스템 구축" value="'+escapeHtml(e.title||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">📁 프로젝트</span><select id="tp_project"><option value="">선택 안 함</option>';
+    employeeProjects.forEach(function(p){
+      html += '<option value="'+escapeHtml(p)+'"'+(e.project===p?' selected':'')+'>'+escapeHtml(p)+'</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="field"><span class="field-label">🛠️ 직무</span><select id="tp_job"><option value="">선택 안 함</option>';
+    employeeJobs.forEach(function(j){
+      html += '<option value="'+escapeHtml(j)+'"'+(e.job===j?' selected':'')+'>'+escapeHtml(j)+'</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="field"><span class="field-label">설명</span><textarea id="tp_description" placeholder="선택 입력" rows="3">'+escapeHtml(e.description||'')+'</textarea></div>';
+
+    html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
+    html += '<p class="field-label field-label-strong" style="margin-bottom:8px;">📅 연도별 기록 (달성여부 · 진척률 · 평가점수)</p>';
+    html += '<div id="tp_yearlyRecordsList"></div>';
+    html += '<button class="cancelbtn" id="tp_yearlyAddBtn" type="button" style="width:100%;margin-top:6px;">+ 연도 기록 추가</button>';
+
+    html += '<div class="row2" style="margin-top:16px;">';
+    html += '<button class="cancelbtn" id="tp_cancelBtn" type="button">취소</button>';
+    html += '<button class="savebtn" id="tp_saveBtn" type="button">저장</button>';
+    html += '</div>';
+    if(existing){
+      html += '<button class="danger" id="tp_deleteBtn" type="button" style="width:100%;margin-top:10px;">이 과업 삭제</button>';
+    }
+
+    body.innerHTML = html;
+    renderTaskYearlyRecordsList();
+    document.getElementById('tp_yearlyAddBtn').addEventListener('click', function(){ openTaskYearRecordInlineForm(); });
+    document.getElementById('tp_cancelBtn').addEventListener('click', function(){ closeSheet('taskPerfFormSheet'); });
+    document.getElementById('tp_saveBtn').addEventListener('click', saveTaskPerfForm);
+    var delBtn = document.getElementById('tp_deleteBtn');
+    if(delBtn){
+      delBtn.addEventListener('click', async function(){
+        taskPerformances = taskPerformances.filter(function(x){ return x.id !== editingTaskPerfId; });
+        await saveTaskPerformances();
+        closeSheet('taskPerfFormSheet');
+        renderTaskPerfScreen();
+      });
+    }
+    openSheet('taskPerfFormSheet');
+  }
+
+  async function saveTaskPerfForm(){
+    var empEl = document.getElementById('tp_employee');
+    if(!empEl || empEl.disabled){
+      empEl && empEl.focus();
+      return;
+    }
+    var title = document.getElementById('tp_title').value.trim();
+    if(!title){
+      document.getElementById('tp_title').focus();
+      return;
+    }
+    var now = new Date().toISOString();
+    var selectedEmp = employees.find(function(x){ return x.id === empEl.value; });
+    var existingTask = taskPerformances.find(function(x){ return x.id === editingTaskPerfId; });
+    var payload = {
+      id: editingTaskPerfId || uid(),
+      employeeId: empEl.value,
+      employeeName: selectedEmp ? selectedEmp.name : (existingTask ? existingTask.employeeName : ''),
+      title: title,
+      project: document.getElementById('tp_project').value,
+      job: document.getElementById('tp_job').value,
+      description: document.getElementById('tp_description').value.trim(),
+      yearlyRecords: currentTaskYearlyRecords.slice(),
+      createdAt: existingTask ? existingTask.createdAt || now : now,
+      updatedAt: now
+    };
+    if(editingTaskPerfId){
+      var idx = taskPerformances.findIndex(function(x){ return x.id === editingTaskPerfId; });
+      if(idx >= 0) taskPerformances[idx] = payload; else taskPerformances.push(payload);
+    }else{
+      taskPerformances.push(payload);
+    }
+    await saveTaskPerformances();
+    closeSheet('taskPerfFormSheet');
+    renderTaskPerfScreen();
+  }
+
+  function renderTaskYearlyRecordsList(){
+    var wrap = document.getElementById('tp_yearlyRecordsList');
+    if(!wrap) return;
+    if(currentTaskYearlyRecords.length === 0){
+      wrap.innerHTML = '<p class="empty-inline">등록된 연도별 기록이 없어요.</p>';
+      return;
+    }
+    var html = '';
+    currentTaskYearlyRecords.slice().sort(function(a,b){ return (b.year||0) - (a.year||0); }).forEach(function(r){
+      var idx = currentTaskYearlyRecords.indexOf(r);
+      html += '<div class="rule-card" style="margin-bottom:8px;padding:10px 12px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
+      html += '<div>';
+      html += '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;background:'+taskPerfStatusColor(r.status)+'22;color:'+taskPerfStatusColor(r.status)+';">'+(r.year||'')+'년 · '+escapeHtml(r.status||'-')+'</span>';
+      html += '<p style="font-size:13px;margin-top:6px;">진척률 <b>'+(r.progress!=null?r.progress:'-')+'%</b> · 평가점수 <b>'+(r.score!=null?r.score:'-')+'</b></p>';
+      if(r.note) html += '<p style="font-size:12px;color:var(--ink-faint);margin-top:2px;">'+escapeHtml(r.note)+'</p>';
+      html += '</div>';
+      html += '<div style="display:flex;gap:6px;flex-shrink:0;">';
+      html += '<button class="cancelbtn" data-tyr-edit="'+idx+'" type="button" style="padding:4px 10px;font-size:11.5px;">수정</button>';
+      html += '<button class="danger" data-tyr-del="'+idx+'" type="button" style="padding:4px 10px;font-size:11.5px;">삭제</button>';
+      html += '</div>';
+      html += '</div></div>';
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('[data-tyr-edit]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var idx = parseInt(btn.getAttribute('data-tyr-edit'), 10);
+        openTaskYearRecordInlineForm(idx);
+      });
+    });
+    wrap.querySelectorAll('[data-tyr-del]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var idx = parseInt(btn.getAttribute('data-tyr-del'), 10);
+        currentTaskYearlyRecords.splice(idx, 1);
+        renderTaskYearlyRecordsList();
+      });
+    });
+  }
+
+  function openTaskYearRecordInlineForm(editIdx){
+    var isEdit = (editIdx != null);
+    var existing = isEdit ? currentTaskYearlyRecords[editIdx] : null;
+    var wrap = document.getElementById('tp_yearlyRecordsList');
+    var html = '<div class="rule-card" style="margin-bottom:8px;">';
+    html += '<div class="field"><span class="field-label">연도</span><input type="number" id="tyr_year" value="'+(existing?existing.year:new Date().getFullYear())+'"></div>';
+    html += '<div class="field"><span class="field-label">달성 여부</span><div class="chiprow" id="tyr_statusChips">';
+    TASK_PERF_STATUS_OPTIONS.forEach(function(s){
+      html += '<button class="chip'+(existing?(existing.status===s?' selected':''):(s==='진행중'?' selected':''))+'" data-status="'+s+'" type="button">'+s+'</button>';
+    });
+    html += '</div></div>';
+    html += '<div class="field"><span class="field-label">진척률 (%)</span><input type="number" min="0" max="100" id="tyr_progress" value="'+(existing&&existing.progress!=null?existing.progress:'')+'"></div>';
+    html += '<div class="field"><span class="field-label">평가점수</span><input type="number" min="0" max="100" id="tyr_score" value="'+(existing&&existing.score!=null?existing.score:'')+'"></div>';
+    html += '<div class="field"><span class="field-label">비고</span><input type="text" id="tyr_note" placeholder="선택 입력" value="'+(existing?escapeHtml(existing.note||''):'')+'"></div>';
+    html += '<div class="row2"><button class="cancelbtn" id="tyr_cancelBtn" type="button">취소</button><button class="savebtn" id="tyr_confirmBtn" type="button">'+(isEdit?'수정완료':'등록')+'</button></div>';
+    html += '</div>';
+    wrap.insertAdjacentHTML('afterbegin', html);
+    document.querySelectorAll('#tyr_statusChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        document.querySelectorAll('#tyr_statusChips .chip').forEach(function(x){ x.classList.remove('selected'); });
+        c.classList.add('selected');
+      });
+    });
+    document.getElementById('tyr_cancelBtn').addEventListener('click', renderTaskYearlyRecordsList);
+    document.getElementById('tyr_confirmBtn').addEventListener('click', function(){
+      var year = parseInt(document.getElementById('tyr_year').value, 10) || new Date().getFullYear();
+      var statusChip = document.querySelector('#tyr_statusChips .chip.selected');
+      var status = statusChip ? statusChip.getAttribute('data-status') : '진행중';
+      var progressVal = parseFloat(document.getElementById('tyr_progress').value);
+      var scoreVal = parseFloat(document.getElementById('tyr_score').value);
+      var payload = {
+        id: existing ? existing.id : uid(),
+        year: year,
+        status: status,
+        progress: isNaN(progressVal) ? null : Math.max(0, Math.min(100, progressVal)),
+        score: isNaN(scoreVal) ? null : Math.max(0, Math.min(100, scoreVal)),
+        note: document.getElementById('tyr_note').value.trim()
+      };
+      if(isEdit){
+        currentTaskYearlyRecords[editIdx] = payload;
+      }else{
+        currentTaskYearlyRecords.push(payload);
+      }
+      renderTaskYearlyRecordsList();
+    });
+  }
+
   // ---------- 개인인사평가 TYPE B (2026년 신규 서식, 첨부 문서 기반) ----------
   var EVAL_B_ITEMS = [
     {area:'성과달성', key:'kpi', label:'핵심과업/KPI 달성', pts:15, core:'담당 KPI·과업을 계획 대비 얼마나 달성했는가', evidence:'KPI, 과업계획/결과, 프로젝트 산출물', desc:[
@@ -7500,6 +7853,7 @@
       employeeWorkLocations: employeeWorkLocations,
       attendanceTypes: attendanceTypes,
       evaluations: evaluations,
+      taskPerformances: taskPerformances,
       exportedAt: new Date().toISOString(),
       app:'work-journal',
       version:3
@@ -7596,6 +7950,14 @@
           });
           await saveEvaluations();
         }
+        if(data.taskPerformances && Array.isArray(data.taskPerformances)){
+          var existingTaskPerfIds = {};
+          taskPerformances.forEach(function(x){ existingTaskPerfIds[x.id] = true; });
+          data.taskPerformances.forEach(function(x){
+            if(!existingTaskPerfIds[x.id]) taskPerformances.push(x);
+          });
+          await saveTaskPerformances();
+        }
         var pwRestored = false;
         renderCalendar();
         renderDayDetail();
@@ -7604,6 +7966,7 @@
         if(pwRestored) extraMsgs.push('비밀번호');
         if(data.employees && Array.isArray(data.employees) && data.employees.length > 0) extraMsgs.push('직원 등록');
         if(data.evaluations && Array.isArray(data.evaluations) && data.evaluations.length > 0) extraMsgs.push('인사평가');
+        if(data.taskPerformances && Array.isArray(data.taskPerformances) && data.taskPerformances.length > 0) extraMsgs.push('과업실적');
         t.textContent = added + '개의 기록을 불러왔어요' + (extraMsgs.length ? ' ('+extraMsgs.join(', ')+'도 복원됐어요)' : '');
       }catch(err){
         t.style.color = 'var(--brick)';
@@ -8069,6 +8432,166 @@
         renderHrScreen();
       });
     });
+  }
+
+  // ---------- 인사관리 > 통계 (유형별·직원별 / 회사·직무·직급별 탭) ----------
+  var hrStatsTab = 'typeEmp';
+  var hrStatsPeriodMode = 'month';
+  var hrStatsTypeMode = 'all';
+
+  function hrStatsFilteredEntries(){
+    var range = getPeriodRange(hrStatsPeriodMode);
+    return entries.filter(function(e){
+      if(e.type !== 'attendance') return false;
+      if(hrStatsTypeMode !== 'all' && e.workType !== hrStatsTypeMode) return false;
+      if(range && (e.date < range.start || e.date > range.end)) return false;
+      return true;
+    });
+  }
+
+  function renderHrStatsScreen(){
+    var body = document.getElementById('hrStatsBody');
+    var html = '';
+    html += '<div class="chiprow" id="hrStatsTabChips" style="margin-bottom:18px;">';
+    html += '<button class="chip'+(hrStatsTab==='typeEmp'?' selected':'')+'" data-tab="typeEmp" type="button">유형별 · 직원별 통계</button>';
+    html += '<button class="chip'+(hrStatsTab==='org'?' selected':'')+'" data-tab="org" type="button">회사/직무/직급 별 통계</button>';
+    html += '</div>';
+
+    if(hrStatsTab === 'org'){
+      html += renderHrStatsOrgHTML();
+    }else{
+      html += renderHrStatsTypeEmpHTML();
+    }
+
+    body.innerHTML = html;
+    body.querySelectorAll('#hrStatsTabChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        hrStatsTab = c.getAttribute('data-tab');
+        renderHrStatsScreen();
+      });
+    });
+
+    if(hrStatsTab === 'typeEmp'){
+      wireHrStatsTypeEmpEvents(body);
+    }
+  }
+
+  function renderHrStatsTypeEmpHTML(){
+    var filtered = hrStatsFilteredEntries();
+    var html = '';
+    html += '<p class="field-label field-label-strong">📅 기간</p>';
+    html += '<div class="chiprow" id="hrStatsPeriodChips" style="margin-bottom:16px;">';
+    [['lastweek','전주'],['week','이번주'],['lastmonth','전달'],['month','이번달'],['quarter','분기'],['half','반기'],['year','연간']].forEach(function(p){
+      html += '<button class="chip'+(hrStatsPeriodMode===p[0]?' selected':'')+'" data-val="'+p[0]+'" type="button">'+p[1]+'</button>';
+    });
+    html += '</div>';
+
+    html += '<p class="field-label field-label-strong">🏷️ 유형</p>';
+    html += '<div class="chiprow" id="hrStatsTypeChips" style="margin-bottom:20px;">';
+    html += '<button class="chip'+(hrStatsTypeMode==='all'?' selected':'')+'" data-val="all" type="button">전체</button>';
+    attendanceTypes.forEach(function(t){
+      html += '<button class="chip'+(hrStatsTypeMode===t?' selected':'')+'" data-val="'+t+'" type="button">'+t+'</button>';
+    });
+    html += '</div>';
+
+    var typeCounts = {};
+    attendanceTypes.forEach(function(t){ typeCounts[t] = 0; });
+    filtered.forEach(function(e){
+      if(typeCounts[e.workType] != null) typeCounts[e.workType]++;
+    });
+    var total = filtered.length;
+
+    html += '<div class="rule-card" style="margin-bottom:20px;">';
+    if(total === 0){
+      html += '<p class="empty-inline">이 기간엔 근무기록이 없어요.</p>';
+    }else{
+      var gradientParts = [];
+      var cumPct = 0;
+      attendanceTypes.forEach(function(t){
+        if(typeCounts[t] === 0) return;
+        var pct = typeCounts[t] / total * 100;
+        gradientParts.push(attendanceTypeColor(t) + ' ' + cumPct + '% ' + (cumPct+pct) + '%');
+        cumPct += pct;
+      });
+      html += '<div style="display:flex;justify-content:center;margin-bottom:16px;">';
+      html += '<div style="width:160px;height:160px;border-radius:50%;background:conic-gradient('+gradientParts.join(', ')+');display:flex;align-items:center;justify-content:center;">';
+      html += '<div style="width:100px;height:100px;border-radius:50%;background:var(--paper-raised);display:flex;flex-direction:column;align-items:center;justify-content:center;">';
+      html += '<span style="font-size:20px;font-weight:700;">'+total+'</span><span style="font-size:11px;color:var(--ink-faint);">건</span>';
+      html += '</div></div></div>';
+      attendanceTypes.forEach(function(t){
+        if(typeCounts[t] === 0) return;
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;">';
+        html += '<span style="width:10px;height:10px;border-radius:50%;background:'+attendanceTypeColor(t)+';display:inline-block;flex-shrink:0;"></span>';
+        html += '<span style="flex:1;">'+t+'</span><b>'+typeCounts[t]+'건 ('+(typeCounts[t]/total*100).toFixed(0)+'%)</b>';
+        html += '</div>';
+      });
+    }
+    html += '</div>';
+
+    if(total > 0){
+      var usedTypes = attendanceTypes.filter(function(t){ return typeCounts[t] > 0; });
+      var empCounts = {};
+      var empOrder = [];
+      filtered.forEach(function(e){
+        var emp = employees.find(function(x){ return x.id === e.employeeId; });
+        var name = emp ? emp.name : '(직원 정보 없음)';
+        if(!empCounts[name]){ empCounts[name] = {}; empOrder.push(name); usedTypes.forEach(function(t){ empCounts[name][t]=0; }); }
+        if(empCounts[name][e.workType] != null) empCounts[name][e.workType]++;
+      });
+      empOrder.sort(function(a,b){ return stripEmojiForCompare(a).localeCompare(stripEmojiForCompare(b), 'ko'); });
+      html += '<p class="card-title">유형별 · 직원별 통계</p>';
+      html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:'+(120+usedTypes.length*70)+'px;">';
+      html += '<thead><tr><th>직원</th>';
+      usedTypes.forEach(function(t){ html += '<th>'+t+'</th>'; });
+      html += '<th>합계</th></tr></thead><tbody>';
+      empOrder.forEach(function(name){
+        html += '<tr><td style="font-weight:700;">'+escapeHtml(name)+'</td>';
+        var rowTotal = 0;
+        usedTypes.forEach(function(t){
+          var c = empCounts[name][t] || 0;
+          rowTotal += c;
+          html += '<td>'+c+'</td>';
+        });
+        html += '<td style="font-weight:700;">'+rowTotal+'</td>';
+        html += '</tr>';
+      });
+      html += '<tr style="font-weight:700;"><td>합계</td>';
+      usedTypes.forEach(function(t){ html += '<td>'+typeCounts[t]+'</td>'; });
+      html += '<td>'+total+'</td></tr>';
+      html += '</tbody></table></div>';
+    }
+    return html;
+  }
+
+  function wireHrStatsTypeEmpEvents(body){
+    body.querySelectorAll('#hrStatsPeriodChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        hrStatsPeriodMode = c.getAttribute('data-val');
+        renderHrStatsScreen();
+      });
+    });
+    body.querySelectorAll('#hrStatsTypeChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        hrStatsTypeMode = c.getAttribute('data-val');
+        renderHrStatsScreen();
+      });
+    });
+  }
+
+  function renderHrStatsOrgHTML(){
+    var active = computeEmployeeStats().active;
+    var html = '';
+    if(active.length === 0){
+      html += '<p class="empty-inline">재직 중인 직원이 없어요.</p>';
+      return html;
+    }
+    html += '<p class="savehint" style="margin-bottom:14px;">재직 중인 직원 '+active.length+'명 기준이에요.</p>';
+    html += '<div style="display:flex;flex-wrap:wrap;gap:16px;">';
+    html += renderMiniDonutHTML('🏢 회사별', computeDonutCounts(active, 'company'), 110);
+    html += renderMiniDonutHTML('🛠️ 직무별', computeDonutCounts(active, 'job'), 110);
+    html += renderMiniDonutHTML('🎖️ 직급별', computeDonutCounts(active, 'position'), 110);
+    html += '</div>';
+    return html;
   }
 
   function renderStatsScreen(){
@@ -8678,6 +9201,16 @@
       renderEvaluationScreen();
       document.getElementById('evaluationScreen').classList.add('open');
     });
+    document.getElementById('hrStatsBtn').addEventListener('click', function(){
+      hrStatsTab = 'typeEmp';
+      hrStatsPeriodMode = 'month';
+      hrStatsTypeMode = 'all';
+      renderHrStatsScreen();
+      document.getElementById('hrStatsScreen').classList.add('open');
+    });
+    document.getElementById('hrStatsBackBtn').addEventListener('click', function(){
+      document.getElementById('hrStatsScreen').classList.remove('open');
+    });
     document.getElementById('evaluationBackBtn').addEventListener('click', function(){
       document.getElementById('evaluationScreen').classList.remove('open');
     });
@@ -8690,6 +9223,15 @@
     document.getElementById('evalGradeTableBackBtn').addEventListener('click', function(){
       document.getElementById('evalGradeTableScreen').classList.remove('open');
     });
+    document.getElementById('taskPerfBtn').addEventListener('click', function(){
+      taskPerfEmployeeFilter = 'all';
+      renderTaskPerfScreen();
+      document.getElementById('taskPerfScreen').classList.add('open');
+    });
+    document.getElementById('taskPerfBackBtn').addEventListener('click', function(){
+      document.getElementById('taskPerfScreen').classList.remove('open');
+    });
+    document.getElementById('taskPerfFormCloseBtn').addEventListener('click', function(){ closeSheet('taskPerfFormSheet'); });
     document.getElementById('evaluationFormCloseBtn').addEventListener('click', function(){ closeSheet('evaluationFormSheet'); });
     document.getElementById('evalTypeChooserCloseBtn').addEventListener('click', function(){ closeSheet('evalTypeChooserSheet'); });
     document.getElementById('evalTypeChooserCancelBtn').addEventListener('click', function(){ closeSheet('evalTypeChooserSheet'); });
@@ -8836,6 +9378,7 @@
       teamDinnerSettings = await loadTeamDinnerSettings();
       evaluations = await loadEvaluations();
       await migrateEvaluationEmployeeNames();
+      taskPerformances = await loadTaskPerformances();
       var backupReminderData = await loadBackupReminder();
       backupReminderDays = backupReminderData.days != null ? backupReminderData.days : 7;
       lastBackupDate = backupReminderData.last || null;
