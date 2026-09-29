@@ -88,7 +88,10 @@ export default async function handler(request) {
     }
 
     const priceRaw = match.PRICE || match.price;
-    const price = Math.round(parseFloat(priceRaw));
+    // 오피넷 원본 값을 소수점까지 그대로 내려줘요 (예: 1843.81). 반올림/절사는 클라이언트에서
+    // "반올림" 체크박스 상태에 따라 처리해요 — 여기서 미리 반올림해버리면 절사(원단위만) 옵션을
+    // 정확히 구현할 수 없어요.
+    const price = parseFloat(priceRaw);
     const date = getDate(match);
 
     if (isNaN(price)) {
