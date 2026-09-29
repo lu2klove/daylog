@@ -2537,7 +2537,7 @@
     html += '</div></div>';
     html += '<div class="field"><span class="field-label">배기량(cc, 참고용)</span><input type="number" id="tf_disp" value="'+(e.displacement!=null?e.displacement:'')+'"></div>';
     html += '<div class="row2"><div class="field"><span class="field-label">운행거리(km)</span><input type="number" id="tf_distance" value="'+(e.distance!=null?e.distance:'')+'"></div><div class="field"><span class="field-label">연비(km/L)</span><input type="number" id="tf_efficiency" value="'+(e.fuelEfficiency!=null?e.fuelEfficiency:'')+'"></div></div>';
-    html += '<div class="field"><span class="field-label">유류단가(원/L)</span><div class="symbol-row" style="display:flex;gap:8px;"><input type="number" id="tf_fuelprice" value="'+(e.fuelPrice!=null?e.fuelPrice:'')+'" style="flex:1;"><button class="cancelbtn" id="tf_fetchFuelBtn" type="button" style="white-space:nowrap;padding:11px 14px;">🔄 출장일 기준 조회</button></div><p class="fetch-status" id="tf_fuelFetchStatus" style="font-size:12px;color:var(--ink-faint);margin:6px 0 0;"></p><p class="savehint"><a class="helper-link" href="https://www.opinet.co.kr/user/main/mainView.do" target="_blank" rel="noopener">직접 오피넷에서 확인 ↗</a> (자동조회는 최근 7일 이내 날짜만 정확해요. 그 이전 날짜는 최신가로 대체돼요)</p><p class="totalline" id="tf_fuelCostLine"></p></div>';
+    html += '<div class="field"><span class="field-label">유류단가(원/L)</span><div class="symbol-row" style="display:flex;gap:8px;"><input type="number" id="tf_fuelprice" value="'+(e.fuelPrice!=null?e.fuelPrice:'')+'" style="flex:1;"><button class="cancelbtn" id="tf_fetchFuelBtn" type="button" style="white-space:nowrap;padding:11px 14px;">🔄 출장일 기준 조회</button></div><label class="checkbox-row" style="margin-top:8px;"><input type="checkbox" id="tf_fuelRound"> 반올림 (해제 시 소수점 버리고 원단위만 사용)</label><p class="fetch-status" id="tf_fuelFetchStatus" style="font-size:12px;color:var(--ink-faint);margin:6px 0 0;"></p><p class="savehint"><a class="helper-link" href="https://www.opinet.co.kr/user/main/mainView.do" target="_blank" rel="noopener">직접 오피넷에서 확인 ↗</a> (자동조회는 최근 7일 이내 날짜만 정확해요. 그 이전 날짜는 최신가로 대체돼요)</p><p class="totalline" id="tf_fuelCostLine"></p></div>';
     html += '</div>';
 
     html += '<p class="field-label" style="margin-top:4px;">교통비 (톨게이트·주차 등, 참고: <a class="helper-link" href="https://www.hipass.co.kr" target="_blank" rel="noopener">하이패스 ↗</a>)</p>';
@@ -2630,6 +2630,7 @@
     }
   }
   function wireTripFormEvents(e){
+    var tripFuelPriceRaw = null; // 오피넷에서 받아온 소수점 포함 원본 단가 (반올림 체크박스로 다시 계산할 때 씀)
     wireLocationSearch('tf_region', 'tf_regionSearchBtn', 'tf_regionResults');
     document.querySelectorAll('#tf_regionType .chip').forEach(function(c){
       c.addEventListener('click', function(){
@@ -2701,6 +2702,24 @@
       document.getElementById('tf_flightcost').addEventListener('input', updateTripTotal);
     }
     document.getElementById('tf_excludeFuel').addEventListener('change', updateTripTotal);
+
+    function applyFuelPriceRoundMode(){
+      if(tripFuelPriceRaw == null) return;
+      var roundChk = document.getElementById('tf_fuelRound');
+      var rounded = roundChk && roundChk.checked;
+      var applied = rounded ? Math.round(tripFuelPriceRaw) : Math.floor(tripFuelPriceRaw);
+      document.getElementById('tf_fuelprice').value = applied;
+      var statusEl = document.getElementById('tf_fuelFetchStatus');
+      if(statusEl && statusEl.getAttribute('data-fetch-date')){
+        var dateLabel = statusEl.getAttribute('data-fetch-date');
+        var fallbackLabel = statusEl.getAttribute('data-fallback') === '1' ? '출장일 기준 데이터가 없어(7일 이전) 최신 데이터로 대체 · ' : '';
+        var suffix = fallbackLabel ? '' : ' (출장일 기준)';
+        statusEl.textContent = fallbackLabel + dateLabel + suffix + ' 전국 평균 · ' + tripFuelPriceRaw.toFixed(2) + '원/L → ' + (rounded ? '반올림 ' : '원단위만 ') + formatWon(applied) + '원 적용됨';
+      }
+      updateTripTotal();
+    }
+    document.getElementById('tf_fuelRound').addEventListener('change', applyFuelPriceRoundMode);
+
     document.getElementById('tf_fetchFuelBtn').addEventListener('click', async function(){
       var statusEl = document.getElementById('tf_fuelFetchStatus');
       var fuelTypeChip = document.querySelector('#tf_fuelType .chip.selected');
@@ -2708,17 +2727,17 @@
       var tripDate = document.getElementById('tf_date').value;
       statusEl.style.color = 'var(--ink-faint)';
       statusEl.textContent = '조회 중...';
+      statusEl.removeAttribute('data-fetch-date');
+      statusEl.removeAttribute('data-fallback');
       try{
         var result = await fetchOpinetFuelPrice(fuelType, tripDate);
-        document.getElementById('tf_fuelprice').value = result.price;
+        tripFuelPriceRaw = parseFloat(result.price);
         statusEl.style.color = 'var(--pine)';
-        if(result.usedFallback){
-          statusEl.textContent = '출장일 기준 데이터가 없어(7일 이전) 최신 데이터로 대체 · '+result.date+' 전국 평균 · '+formatWon(result.price)+'원/L';
-        }else{
-          statusEl.textContent = result.date + ' (출장일 기준) 전국 평균 · '+formatWon(result.price)+'원/L 적용됨';
-        }
-        updateTripTotal();
+        statusEl.setAttribute('data-fetch-date', result.date);
+        statusEl.setAttribute('data-fallback', result.usedFallback ? '1' : '0');
+        applyFuelPriceRoundMode();
       }catch(err){
+        tripFuelPriceRaw = null;
         statusEl.style.color = 'var(--brick)';
         statusEl.textContent = '자동 조회 실패: ' + err.message + ' — 아래 링크로 직접 확인해서 입력해주세요.';
       }
