@@ -2181,6 +2181,16 @@
   function canAddIncidentHistory(){
     return true;
   }
+  // 하지만 이미 등록된 조치이력 "한 건"을 수정/삭제하는 건, 다른 사람이 적은
+  // 기록을 손대는 셈이라 관리자이거나 본인이 작성한 항목일 때만 허용해요.
+  // 또한 업무일지(장애조치)에서 자동으로 동기화된 항목은 그 업무일지가 원본이라
+  // 여기서 직접 고치면 서로 어긋나므로, 연결된 업무일지 쪽에서 고치도록 안내해요.
+  function canEditIncidentHistoryEntry(h){
+    if(h.fromTaskId) return false;
+    if(isAdminUser()) return true;
+    if(!currentEmployee) return false;
+    return h.authorId === currentEmployee.id;
+  }
 
   function unlockApp(){
     document.getElementById('lockScreen').style.display = 'none';
@@ -2924,6 +2934,8 @@
         var id = btn.getAttribute('data-inc-open');
         var e = entries.find(function(x){ return x.id === id; });
         if(!e) return;
+        editingHistoryEntryId = null;
+        historyDeleteConfirmingId = null;
         openIncidentForm(e);
       });
     });
@@ -9854,10 +9866,24 @@
       html += '</div></div>';
     }
 
-    html += '<div class="field"><span class="field-label field-label-strong" id="tk_contentLabel">'+(initialCategory==='incidentAction'?'🖥️ 조치 내용':'📝 오늘 한 일')+'</span><textarea id="tk_content" placeholder="'+(initialCategory==='incidentAction'?'오늘 수행한 조치 내용을 적어주세요':'오늘 한 업무를 간단히 적어주세요')+'" rows="4">'+escapeHtml(e.content||'')+'</textarea></div>';
+    if(incidentFeatureAllowed){
+      // 일반 업무와 장애조치는 서로 다른 내용을 담는 필드라, 같은 입력창을
+      // 공유하면 탭을 바꿔도 방금 적은 내용이 그대로 남아있어 "두 탭이 같은
+      // 내용을 보여준다"고 오해할 수 있어요. 그래서 탭별로 입력창을 따로 두고
+      // 선택된 탭의 것만 보여줘요(저장할 때는 그 중 선택된 탭의 값만 써요).
+      html += '<div class="field"><span class="field-label field-label-strong" id="tk_contentLabel">'+(initialCategory==='incidentAction'?'🖥️ 조치 내용':'📝 오늘 한 일')+'</span>';
+      html += '<textarea id="tk_content_general" placeholder="오늘 한 업무를 간단히 적어주세요" rows="4" style="display:'+(initialCategory==='incidentAction'?'none':'block')+';">'+escapeHtml(initialCategory==='incidentAction' ? '' : (e.content||''))+'</textarea>';
+      html += '<textarea id="tk_content_incident" placeholder="오늘 수행한 조치 내용을 적어주세요" rows="4" style="display:'+(initialCategory==='incidentAction'?'block':'none')+';">'+escapeHtml(initialCategory==='incidentAction' ? (e.content||'') : '')+'</textarea>';
+      html += '</div>';
+    }else{
+      html += '<div class="field"><span class="field-label field-label-strong" id="tk_contentLabel">📝 오늘 한 일</span><textarea id="tk_content" placeholder="오늘 한 업무를 간단히 적어주세요" rows="4">'+escapeHtml(e.content||'')+'</textarea></div>';
+    }
 
     if(incidentFeatureAllowed){
-      var incidentOptions = entries.filter(function(x){ return x.type === 'incident'; }).slice().sort(function(a,b){ return (a.date||'') < (b.date||'') ? 1 : -1; });
+      // 종결된 장애는 처리가 끝난 장애라 새 조치를 이어붙일 대상이 아니에요.
+      // 다만 이 업무일지가 이미 그 장애에 연결돼 있었다면(연결 당시엔 종결이
+      // 아니었을 수 있으니) 그 연결 자체는 끊지 않도록 선택지에 남겨둬요.
+      var incidentOptions = entries.filter(function(x){ return x.type === 'incident' && (x.status !== '종결' || x.id === e.linkedIncidentId); }).slice().sort(function(a,b){ return (a.date||'') < (b.date||'') ? 1 : -1; });
       html += '<div class="field" id="tk_linkedIncidentField" style="display:'+(initialCategory==='incidentAction'?'block':'none')+';">';
       html += '<span class="field-label field-label-strong">관련 장애 선택</span><select id="tk_linkedIncident">';
       if(incidentOptions.length === 0){
@@ -9870,6 +9896,7 @@
         });
       }
       html += '</select>';
+      html += '<p class="savehint" id="tk_currentIncidentStatusHint"></p>';
       html += '<div class="field" style="margin-top:10px;"><span class="field-label">상태 변경 (선택)</span><select id="tk_incidentStatus"><option value="">변경 안 함</option>';
       INCIDENT_STATUSES.forEach(function(s){
         html += '<option value="'+s+'">'+INCIDENT_STATUS_META[s].icon+' '+s+'</option>';
@@ -9911,9 +9938,16 @@
           var isIncident = c.getAttribute('data-val') === 'incidentAction';
           document.getElementById('tk_linkedIncidentField').style.display = isIncident ? 'block' : 'none';
           document.getElementById('tk_contentLabel').textContent = isIncident ? '🖥️ 조치 내용' : '📝 오늘 한 일';
-          document.getElementById('tk_content').placeholder = isIncident ? '오늘 수행한 조치 내용을 적어주세요' : '오늘 한 업무를 간단히 적어주세요';
+          document.getElementById('tk_content_general').style.display = isIncident ? 'none' : 'block';
+          document.getElementById('tk_content_incident').style.display = isIncident ? 'block' : 'none';
+          updateTkIncidentStatusHint();
         });
       });
+      var tkLinkedIncidentEl = document.getElementById('tk_linkedIncident');
+      if(tkLinkedIncidentEl){
+        tkLinkedIncidentEl.addEventListener('change', updateTkIncidentStatusHint);
+      }
+      updateTkIncidentStatusHint();
     }
     var tkDelBtn = document.getElementById('tk_deleteBtn');
     if(tkDelBtn){
@@ -9928,15 +9962,29 @@
     }
     openSheet('taskSheet');
   }
-  async function saveTaskForm(){
-    var content = document.getElementById('tk_content').value.trim();
-    if(!content){
-      document.getElementById('tk_content').focus();
+  // "상태 변경" 선택은 매번 "이번 저장에 적용할 동작"이라 항상 "변경 안 함"으로
+  // 시작해요(장애의 실제 현재 상태를 미리 선택해두지 않아요 — 그러면 다시 열 때마다
+  // 매번 의도치 않은 상태변경 이력이 쌓여요). 대신 선택한 장애의 "현재" 상태를
+  // 별도 안내 문구로 보여줘서, 상태를 바꾸지 않고 저장해도 "왜 변경 안 함으로
+  // 보이지?" 하고 오해하지 않도록 해요.
+  function updateTkIncidentStatusHint(){
+    var hintEl = document.getElementById('tk_currentIncidentStatusHint');
+    if(!hintEl) return;
+    var linkEl = document.getElementById('tk_linkedIncident');
+    var incId = linkEl ? linkEl.value : '';
+    var inc = incId ? entries.find(function(x){ return x.id === incId && x.type === 'incident'; }) : null;
+    if(!inc){
+      hintEl.textContent = '';
       return;
     }
+    var meta = INCIDENT_STATUS_META[inc.status] || {};
+    hintEl.textContent = '현재 상태: '+(meta.icon||'')+' '+(inc.status||'-')+' (아래에서 바꾸지 않으면 그대로 유지돼요)';
+  }
+  async function saveTaskForm(){
     var now = new Date().toISOString();
     var existingTaskEntry = editingTaskId ? entries.find(function(x){return x.id===editingTaskId;}) : null;
 
+    // 업무유형(일반/장애조치)을 먼저 정해야 그에 맞는 입력창에서 내용을 읽어요.
     // 권한적용에서 장애 관리 기능이 꺼져 있으면 업무유형 선택 UI 자체가
     // 렌더되지 않아요. 이미 "장애조치"로 연결돼 있던 기존 업무일지를 그
     // 상태에서 내용만 고쳐 저장해도 연결이 끊기지 않도록, UI가 없을 때는
@@ -9946,6 +9994,18 @@
     if(categoryEl){
       var selectedChip = categoryEl.querySelector('.chip.selected');
       taskCategory = selectedChip ? selectedChip.getAttribute('data-val') : 'general';
+    }
+
+    var contentEl = document.getElementById('tk_content');
+    if(!contentEl){
+      contentEl = (taskCategory === 'incidentAction')
+        ? document.getElementById('tk_content_incident')
+        : document.getElementById('tk_content_general');
+    }
+    var content = contentEl.value.trim();
+    if(!content){
+      contentEl.focus();
+      return;
     }
     var linkedIncidentId = existingTaskEntry ? (existingTaskEntry.linkedIncidentId || null) : null;
     var incidentStatusChange = '';
@@ -10055,6 +10115,12 @@
   // 등록자만 할 수 있지만, "조치이력 추가"는 여러 직원이 날짜별로 이어서
   // 처리하는 구조라 canEditEntry와 무관하게 누구나 할 수 있어요.
   var editingIncidentId = null;
+  // 조치이력 "한 건"을 수정 중인지/삭제 확인 중인지 상태예요. openIncidentForm은
+  // 저장·삭제 뒤 화면을 다시 그리려고 내부에서도 스스로를 호출하므로, 이 값은
+  // openIncidentForm 안에서는 리셋하지 않고 "새로 여는" 외부 진입점(달력
+  // 상세화면의 상세보기 버튼, 장애조치 선택 버튼)에서만 리셋해요.
+  var editingHistoryEntryId = null;
+  var historyDeleteConfirmingId = null;
   function openIncidentForm(existing){
     editingIncidentId = existing ? existing.id : null;
     var e = existing || { status:'접수' };
@@ -10105,20 +10171,49 @@
         if(h.statusAfter){
           html += '<p style="margin-top:4px;font-size:12px;color:var(--brick);">상태 → '+((INCIDENT_STATUS_META[h.statusAfter]||{}).icon||'')+' '+escapeHtml(h.statusAfter)+'</p>';
         }
+        // 업무일지(장애조치)에서 자동으로 동기화된 이력은 그 업무일지가 원본이라
+        // 여기서 직접 고치면 서로 어긋나므로, 연결된 업무일지 쪽에서 고치도록
+        // 안내만 하고 수정/삭제 버튼은 보여주지 않아요.
+        if(h.fromTaskId){
+          html += '<p style="margin-top:6px;font-size:11.5px;color:var(--ink-soft);">🔗 연결된 업무일지에서 수정/삭제해주세요</p>';
+        }else if(canEditIncidentHistoryEntry(h)){
+          if(historyDeleteConfirmingId === h.id){
+            html += '<div style="margin-top:6px;display:flex;gap:6px;align-items:center;">';
+            html += '<span style="font-size:12px;color:var(--brick);">정말 삭제할까요?</span>';
+            html += '<button class="danger" data-hist-confirmdel="'+h.id+'" type="button" style="padding:4px 10px;font-size:12px;">삭제</button>';
+            html += '<button class="cancelbtn" data-hist-canceldel="'+h.id+'" type="button" style="padding:4px 10px;font-size:12px;">취소</button>';
+            html += '</div>';
+          }else{
+            html += '<div style="margin-top:6px;display:flex;gap:6px;">';
+            html += '<button class="cancelbtn" data-hist-edit="'+h.id+'" type="button" style="padding:4px 10px;font-size:12px;">수정</button>';
+            html += '<button class="danger" data-hist-askdel="'+h.id+'" type="button" style="padding:4px 10px;font-size:12px;">삭제</button>';
+            html += '</div>';
+          }
+        }
         html += '</div>';
       });
     }
     if(existing && canAddIncidentHistory()){
-      html += '<button class="cancelbtn" id="inc_historyAddToggleBtn" type="button" style="width:100%;">＋ 조치이력 추가</button>';
-      html += '<div id="inc_historyAddFields" style="display:none;border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px;">';
-      html += '<div class="field"><span class="field-label field-label-strong">날짜</span><input type="date" id="inc_h_date" value="'+todayStr()+'"></div>';
-      html += '<div class="field"><span class="field-label field-label-strong">조치 내용</span><textarea id="inc_h_content" placeholder="오늘 수행한 조치 내용을 적어주세요" rows="3"></textarea></div>';
+      var editingHistEntry = editingHistoryEntryId ? history.find(function(h){ return h.id === editingHistoryEntryId; }) : null;
+      if(!editingHistEntry) editingHistoryEntryId = null;
+      var isEditingHist = !!editingHistEntry;
+      html += '<button class="cancelbtn" id="inc_historyAddToggleBtn" type="button" style="width:100%;'+(isEditingHist?'display:none;':'')+'">＋ 조치이력 추가</button>';
+      html += '<div id="inc_historyAddFields" style="display:'+(isEditingHist?'block':'none')+';border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px;">';
+      if(isEditingHist){
+        html += '<p class="field-label field-label-strong" style="margin-bottom:6px;">✏️ 조치이력 수정</p>';
+      }
+      html += '<div class="field"><span class="field-label field-label-strong">날짜</span><input type="date" id="inc_h_date" value="'+(isEditingHist?(editingHistEntry.date||todayStr()):todayStr())+'"></div>';
+      html += '<div class="field"><span class="field-label field-label-strong">조치 내용</span><textarea id="inc_h_content" placeholder="오늘 수행한 조치 내용을 적어주세요" rows="3">'+(isEditingHist?escapeHtml(editingHistEntry.content||''):'')+'</textarea></div>';
       html += '<div class="field"><span class="field-label">상태 변경 (선택)</span><select id="inc_h_status"><option value="">변경 안 함</option>';
       INCIDENT_STATUSES.forEach(function(s){
-        html += '<option value="'+s+'">'+INCIDENT_STATUS_META[s].icon+' '+s+'</option>';
+        html += '<option value="'+s+'"'+(isEditingHist && editingHistEntry.statusAfter===s?' selected':'')+'>'+INCIDENT_STATUS_META[s].icon+' '+s+'</option>';
       });
       html += '</select></div>';
-      html += '<button class="savebtn" id="inc_historySaveBtn" type="button" style="width:100%;">조치이력 저장</button>';
+      if(isEditingHist){
+        html += '<div class="row2"><button class="cancelbtn" id="inc_historyEditCancelBtn" type="button">수정 취소</button><button class="savebtn" id="inc_historySaveBtn" type="button">수정 저장</button></div>';
+      }else{
+        html += '<button class="savebtn" id="inc_historySaveBtn" type="button" style="width:100%;">조치이력 저장</button>';
+      }
       html += '</div>';
     }else if(!existing){
       html += '<p class="savehint">장애를 먼저 저장하면 조치이력을 추가할 수 있어요.</p>';
@@ -10169,6 +10264,44 @@
     if(histSaveBtn){
       histSaveBtn.addEventListener('click', saveIncidentHistoryEntry);
     }
+    var histEditCancelBtn = document.getElementById('inc_historyEditCancelBtn');
+    if(histEditCancelBtn){
+      histEditCancelBtn.addEventListener('click', function(){
+        editingHistoryEntryId = null;
+        openIncidentForm(e);
+      });
+    }
+    document.querySelectorAll('[data-hist-edit]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        editingHistoryEntryId = btn.getAttribute('data-hist-edit');
+        historyDeleteConfirmingId = null;
+        openIncidentForm(e);
+      });
+    });
+    document.querySelectorAll('[data-hist-askdel]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        historyDeleteConfirmingId = btn.getAttribute('data-hist-askdel');
+        openIncidentForm(e);
+      });
+    });
+    document.querySelectorAll('[data-hist-canceldel]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        historyDeleteConfirmingId = null;
+        openIncidentForm(e);
+      });
+    });
+    document.querySelectorAll('[data-hist-confirmdel]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        var hid = btn.getAttribute('data-hist-confirmdel');
+        e.actionHistory = (e.actionHistory||[]).filter(function(h){ return h.id !== hid; });
+        e.updatedAt = new Date().toISOString();
+        if(editingHistoryEntryId === hid) editingHistoryEntryId = null;
+        historyDeleteConfirmingId = null;
+        await saveEntries();
+        refreshAfterSave();
+        openIncidentForm(e);
+      });
+    });
     openSheet('incidentSheet');
   }
   async function saveIncidentForm(){
@@ -10215,16 +10348,32 @@
     if(!inc) return;
     if(!Array.isArray(inc.actionHistory)) inc.actionHistory = [];
     var statusChange = document.getElementById('inc_h_status').value;
-    inc.actionHistory.push({
-      id: 'h'+uid(),
-      date: document.getElementById('inc_h_date').value || todayStr(),
-      content: content,
-      authorId: currentEmployee ? currentEmployee.id : null,
-      authorName: currentEmployee ? currentEmployee.name : '관리자',
-      fromTaskId: null,
-      statusAfter: statusChange || null,
-      createdAt: new Date().toISOString()
-    });
+    var dateVal = document.getElementById('inc_h_date').value || todayStr();
+
+    if(editingHistoryEntryId){
+      // 기존 이력 항목 수정: 새로 추가하지 않고 그 항목의 날짜/내용/상태변경만
+      // 갱신해요. 업무일지에서 자동 동기화된 항목은 애초에 수정 버튼 자체가
+      // 안 보이므로(canEditIncidentHistoryEntry) 여기까지 오지 않아요.
+      var target = inc.actionHistory.find(function(h){ return h.id === editingHistoryEntryId; });
+      if(target && canEditIncidentHistoryEntry(target)){
+        target.date = dateVal;
+        target.content = content;
+        target.statusAfter = statusChange || null;
+        target.updatedAt = new Date().toISOString();
+      }
+      editingHistoryEntryId = null;
+    }else{
+      inc.actionHistory.push({
+        id: 'h'+uid(),
+        date: dateVal,
+        content: content,
+        authorId: currentEmployee ? currentEmployee.id : null,
+        authorName: currentEmployee ? currentEmployee.name : '관리자',
+        fromTaskId: null,
+        statusAfter: statusChange || null,
+        createdAt: new Date().toISOString()
+      });
+    }
     if(statusChange) inc.status = statusChange;
     inc.updatedAt = new Date().toISOString();
     await saveEntries();
@@ -12262,7 +12411,7 @@
     document.getElementById('taskChooserCloseBtn').addEventListener('click', function(){ closeSheet('taskChooserSheet'); });
     document.getElementById('taskChooserCancelBtn').addEventListener('click', function(){ closeSheet('taskChooserSheet'); });
     document.getElementById('taskChooserLogBtn').addEventListener('click', function(){ closeSheet('taskChooserSheet'); openTaskForm(null); });
-    document.getElementById('taskChooserIncidentBtn').addEventListener('click', function(){ closeSheet('taskChooserSheet'); openIncidentForm(null); });
+    document.getElementById('taskChooserIncidentBtn').addEventListener('click', function(){ closeSheet('taskChooserSheet'); editingHistoryEntryId = null; historyDeleteConfirmingId = null; openIncidentForm(null); });
     document.getElementById('incidentCloseBtn').addEventListener('click', function(){ closeSheet('incidentSheet'); });
     document.getElementById('datePickerCloseBtn').addEventListener('click', function(){ closeSheet('datePickerSheet'); });
     document.getElementById('settingsCloseBtn').addEventListener('click', function(){ closeSheet('settingsSheet'); });
