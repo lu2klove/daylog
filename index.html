@@ -2045,7 +2045,7 @@
             if(storedEmpId){
               try{
                 var uid = await getCurrentUserId();
-                var empRes = await supabaseClient.from('employees').select('*').eq('user_id', uid);
+                var empRes = await supabaseClient.from('employees_directory').select('*').eq('user_id', uid);
                 var emps = (!empRes.error && empRes.data) ? empRes.data.map(employeeRowToObject) : [];
                 var found = emps.find(function(x){ return x.id === storedEmpId; });
                 if(found){
@@ -5159,11 +5159,14 @@
       return;
     }
     var existingEmp = editingEmployeeId ? employees.find(function(x){ return x.id === editingEmployeeId; }) : null;
+    // 비밀번호칸을 비워두면 payload에 password 키 자체를 안 넣어요(아래에서 처리).
+    // employees_directory 뷰는 비밀번호를 내려주지 않기 때문에, 여기서 기존 값을
+    // 읽어다 보존하는 대신 DB의 employees_before_update_guard 트리거가 "password
+    // 키가 없으면 기존 값을 그대로 유지"해줘요.
     var payload = {
       id: editingEmployeeId || uid(),
       name: name,
       role: getSelectedChipVal('emp_roleChips') || '일반',
-      password: pwInputVal ? pwInputVal : (existingEmp ? (existingEmp.password || '') : ''),
       gender: (function(){ var sel = document.querySelector('#emp_genderChips .chip.selected'); return sel ? sel.getAttribute('data-gender') : null; })(),
       employeeNumber: document.getElementById('emp_employeeNumber').value.trim(),
       birthDate: document.getElementById('emp_birthDate').value,
@@ -5189,6 +5192,9 @@
       appointments: currentEmployeeAppointments.slice(),
       photo: currentEmployeePhoto || null
     };
+    if(pwInputVal){
+      payload.password = await hashPasswordClient(pwInputVal);
+    }
     if(editingEmployeeId){
       var idx = employees.findIndex(function(x){ return x.id === editingEmployeeId; });
       if(idx >= 0) employees[idx] = payload; else employees.push(payload);
@@ -5340,9 +5346,10 @@
       if(p1 !== p2){ t.style.color='var(--brick)'; t.textContent = '두 비밀번호가 서로 달라요'; return; }
       var idx = employees.findIndex(function(x){ return x.id === currentEmployee.id; });
       if(idx >= 0){
-        employees[idx] = Object.assign({}, employees[idx], { password: p1 });
+        var hashed = await hashPasswordClient(p1);
+        employees[idx] = Object.assign({}, employees[idx], { password: hashed });
         currentEmployee = employees[idx];
-        await saveEmployees();
+        await saveMyEmployeeRow(employees[idx]);
       }
       t.style.color='var(--pine)';
       t.textContent = '변경됐어요';
@@ -5380,7 +5387,7 @@
       educations: currentEmployeeEducations.slice()
     });
     employees[idx] = updated;
-    await saveEmployees();
+    await saveMyEmployeeRow(updated);
     if(currentEmployee && currentEmployee.id === updated.id){
       currentEmployee = updated;
     }
@@ -5557,7 +5564,7 @@
     }else{
       html += '<select id="ev_employee">';
       employees.forEach(function(emp){
-        html += '<option value="'+emp.id+'"'+(e.employeeId===emp.id?' selected':'')+'>'+escapeHtml(emp.name)+(emp.position?' ('+emp.position+')':'')+'</option>';
+        html += '<option value="'+emp.id+'"'+(e.employeeId===emp.id?' selected':'')+'>'+escapeHtml(emp.name)+(emp.position?' ('+escapeHtml(emp.position)+')':'')+'</option>';
       });
       html += '</select>';
     }
@@ -6110,7 +6117,7 @@
     }else{
       html += '<select id="tp_employee">';
       employees.forEach(function(emp){
-        html += '<option value="'+emp.id+'"'+(e.employeeId===emp.id?' selected':'')+'>'+escapeHtml(emp.name)+(emp.position?' ('+emp.position+')':'')+'</option>';
+        html += '<option value="'+emp.id+'"'+(e.employeeId===emp.id?' selected':'')+'>'+escapeHtml(emp.name)+(emp.position?' ('+escapeHtml(emp.position)+')':'')+'</option>';
       });
       html += '</select>';
     }
@@ -6478,7 +6485,7 @@
     }else{
       html += '<select id="evb_employee">';
       employees.forEach(function(emp){
-        html += '<option value="'+emp.id+'"'+(e.employeeId===emp.id?' selected':'')+'>'+escapeHtml(emp.name)+(emp.position?' ('+emp.position+')':'')+'</option>';
+        html += '<option value="'+emp.id+'"'+(e.employeeId===emp.id?' selected':'')+'>'+escapeHtml(emp.name)+(emp.position?' ('+escapeHtml(emp.position)+')':'')+'</option>';
       });
       html += '</select>';
     }
@@ -6772,10 +6779,37 @@
     try{
       var uid = await getCurrentUserId();
       if(!uid){ reportSyncError('employees 불러오기', '로그인 세션을 찾을 수 없어요'); return []; }
-      var res = await supabaseClient.from('employees').select('*').eq('user_id', uid);
+      // employees 원본 테이블은 관리자만 조회할 수 있어요(비밀번호 해시 보호). 일반
+      // 직원을 포함해 누구나 동료 이름/직급 등을 볼 때는 비밀번호가 빠진
+      // employees_directory 뷰로 조회해요.
+      var res = await supabaseClient.from('employees_directory').select('*').eq('user_id', uid);
       if(res.error){ reportSyncError('employees 불러오기', res.error); return []; }
       return res.data.map(employeeRowToObject);
     }catch(e){ reportSyncError('employees 불러오기', e); return []; }
+  }
+  // 본인(MY정보) 정보만 저장할 때 쓰는 단일 행 upsert예요. saveEmployees()처럼 전체
+  // 직원 배열을 통째로 올리면, 일반 직원은 본인 행만 수정 권한이 있는 DB 정책상
+  // 나머지 동료 행 때문에 저장 자체가 실패해요. 그래서 본인 정보 변경은 항상 이
+  // 함수로 자기 행 하나만 올려요.
+  async function saveMyEmployeeRow(empObj){
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid){ reportSyncError('내 정보 저장', '로그인 세션을 찾을 수 없어요'); return; }
+      var row = employeeObjectToRow(empObj, uid);
+      var res = await supabaseClient.from('employees').upsert(row, { onConflict: 'id' });
+      if(res.error){ reportSyncError('내 정보 저장', res.error); }
+    }catch(e){ reportSyncError('내 정보 저장', e); }
+  }
+  // 비밀번호는 서버(employee-auth 함수)가 쓰는 것과 동일한 PBKDF2(SHA-256, 10만회
+  // 반복) 형식으로 브라우저에서 미리 해시해서 보내요. 이렇게 하면 새로 바꾼
+  // 비밀번호가 평문 상태로 DB에 잠깐이라도 저장되는 일이 없어요.
+  async function hashPasswordClient(password){
+    var salt = crypto.getRandomValues(new Uint8Array(16));
+    var keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+    var bits = await crypto.subtle.deriveBits({ name:'PBKDF2', salt:salt, iterations:100000, hash:'SHA-256' }, keyMaterial, 256);
+    var hashB64 = btoa(String.fromCharCode.apply(null, new Uint8Array(bits)));
+    var saltB64 = btoa(String.fromCharCode.apply(null, salt));
+    return 'pbkdf2$100000$'+saltB64+'$'+hashB64;
   }
   async function saveEmployees(){
     try{
@@ -7261,7 +7295,7 @@
 
     html += '<div class="field"><span class="field-label">카테고리</span><div class="chiprow" id="ef_category">';
     expenseCategories.forEach(function(c){
-      html += '<button class="chip'+(e.category===c?' selected':'')+'" data-val="'+c+'" type="button">'+c+'</button>';
+      html += '<button class="chip'+(e.category===c?' selected':'')+'" data-val="'+escapeHtml(c)+'" type="button">'+escapeHtml(c)+'</button>';
     });
     html += '</div></div>';
 
@@ -7751,7 +7785,7 @@
 
     html += '<div class="field"><span class="field-label field-label-strong">🏷️ 근무형태</span><select id="at_worktype">';
     attendanceTypes.forEach(function(t){
-      html += '<option value="'+t+'"'+(e.workType===t?' selected':'')+'>'+t+'</option>';
+      html += '<option value="'+escapeHtml(t)+'"'+(e.workType===t?' selected':'')+'>'+escapeHtml(t)+'</option>';
     });
     html += '</select></div>';
 
@@ -8602,7 +8636,7 @@
     html += '<div class="chiprow" id="hrTypeChips" style="margin-bottom:20px;">';
     html += '<button class="chip'+(hrTypeMode==='all'?' selected':'')+'" data-val="all" type="button">전체</button>';
     attendanceTypes.forEach(function(t){
-      html += '<button class="chip'+(hrTypeMode===t?' selected':'')+'" data-val="'+t+'" type="button">'+t+'</button>';
+      html += '<button class="chip'+(hrTypeMode===t?' selected':'')+'" data-val="'+escapeHtml(t)+'" type="button">'+escapeHtml(t)+'</button>';
     });
     html += '</div>';
 
@@ -8643,7 +8677,7 @@
         if(typeCounts[t] === 0) return;
         html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;">';
         html += '<span style="width:10px;height:10px;border-radius:50%;background:'+attendanceTypeColor(t)+';display:inline-block;flex-shrink:0;"></span>';
-        html += '<span style="flex:1;">'+t+'</span><b>'+typeCounts[t]+'건 ('+(typeCounts[t]/total*100).toFixed(0)+'%)</b>';
+        html += '<span style="flex:1;">'+escapeHtml(t)+'</span><b>'+typeCounts[t]+'건 ('+(typeCounts[t]/total*100).toFixed(0)+'%)</b>';
         html += '</div>';
       });
     }
@@ -9544,9 +9578,10 @@
         if(p1 !== p2){ t.style.color='var(--brick)'; t.textContent = '두 비밀번호가 서로 달라요'; return; }
         var idx = employees.findIndex(function(x){ return x.id === currentEmployee.id; });
         if(idx >= 0){
-          employees[idx] = Object.assign({}, employees[idx], { password: p1 });
+          var hashed = await hashPasswordClient(p1);
+          employees[idx] = Object.assign({}, employees[idx], { password: hashed });
           currentEmployee = employees[idx];
-          await saveEmployees();
+          await saveMyEmployeeRow(employees[idx]);
         }
         t.style.color='var(--pine)';
         t.textContent = '변경됐어요';
