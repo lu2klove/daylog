@@ -381,6 +381,7 @@
   .dot-welfare{ background:var(--teal); }
   .dot-task{ background:var(--pine); }
   .dot-attendance{ background:var(--amber); }
+  .dot-incident{ background:var(--brick); }
 
   .day-detail{
     max-height:0;
@@ -432,6 +433,7 @@
   .tagbtn.welfare{ border-color:var(--teal); }
   .tagbtn.task{ border-color:var(--pine); }
   .tagbtn.attendance{ border-color:var(--amber); }
+  .tagbtn.incident{ border-color:var(--brick); }
 
   .checklist-item{
     display:flex;
@@ -510,6 +512,7 @@
   .record-badge.welfare{ background:var(--teal-soft); color:var(--teal); }
   .record-badge.task{ background:var(--pine-soft); color:var(--pine); }
   .record-badge.attendance{ background:var(--amber-soft); color:var(--amber); }
+  .record-badge.incident{ background:var(--brick-soft); color:var(--brick); }
   .record-amt{
     font-family:'IBM Plex Mono',monospace;
     font-weight:700;
@@ -1412,6 +1415,35 @@
   <div id="taskFormBody"></div>
 </div>
 
+<!-- 업무 버튼 클릭 시: 업무일지 등록 / 장애 등록 분기 선택 -->
+<div class="bottom-sheet" id="taskChooserSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">📝 업무 등록</span>
+    <button class="sheet-close" id="taskChooserCloseBtn" type="button">✕</button>
+  </div>
+  <div id="taskChooserBody">
+    <p class="savehint" style="margin-bottom:16px;">등록할 내용의 종류를 선택해주세요.</p>
+    <button class="rule-card" id="taskChooserLogBtn" type="button" style="width:100%;text-align:left;margin-bottom:12px;cursor:pointer;">
+      <p style="font-weight:700;font-size:15px;">📝 업무일지 등록</p>
+      <p class="savehint" style="margin-top:4px;">오늘 수행한 업무 내용을 기록해요.</p>
+    </button>
+    <button class="rule-card" id="taskChooserIncidentBtn" type="button" style="width:100%;text-align:left;cursor:pointer;">
+      <p style="font-weight:700;font-size:15px;">🖥️ 장애 등록</p>
+      <p class="savehint" style="margin-top:4px;">새로운 장애가 발생했을 때 한 번만 등록해요. 이후 처리 과정은 업무일지(장애조치)나 장애 상세화면에서 조치이력으로 이어서 기록해요.</p>
+    </button>
+    <button class="cancelbtn" id="taskChooserCancelBtn" type="button" style="width:100%;margin-top:14px;">취소</button>
+  </div>
+</div>
+
+<!-- 장애 등록/상세(기본정보 + 조치이력) -->
+<div class="bottom-sheet" id="incidentSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">🖥️ 장애</span>
+    <button class="sheet-close" id="incidentCloseBtn" type="button">✕</button>
+  </div>
+  <div id="incidentFormBody"></div>
+</div>
+
 <!-- 날짜 선택 -->
 <div class="bottom-sheet" id="datePickerSheet">
   <div class="sheet-head">
@@ -2025,13 +2057,19 @@
     return !!(currentEmployee && currentEmployee.role === '관리자');
   }
 
-  // 본인이 등록하지 않은 업무/근무기록은 읽기 전용 (수정/삭제 불가)
+  // 본인이 등록하지 않은 업무/근무기록/장애 기본정보는 읽기 전용 (수정/삭제 불가).
+  // 단, 장애의 "조치이력 추가"는 이 함수와 무관하게 누구나 할 수 있어요(공유
+  // 자원이라 여러 직원이 날짜별로 이어서 처리하는 구조라서요) — canAddIncidentHistory 참고.
   function canEditEntry(e){
     if(isAdminUser()) return true;
     if(!currentEmployee) return true;
-    if(e.type !== 'task' && e.type !== 'attendance') return true;
+    if(e.type !== 'task' && e.type !== 'attendance' && e.type !== 'incident') return true;
     // employeeId가 없으면(직원별 로그인 도입 전 기록) 본인이 등록한 게 아니므로 읽기 전용
     return e.employeeId === currentEmployee.id;
+  }
+  // 장애의 조치이력 추가는 기본정보 수정 권한과 별개로 누구나 가능해요.
+  function canAddIncidentHistory(){
+    return true;
   }
 
   function unlockApp(){
@@ -2332,17 +2370,18 @@
     return entries.filter(function(e){ return e.date === dateStr; });
   }
   // 관리자는 모든 기록을 볼 수 있어요. 일반 직원은 본인이 등록한 업무/근무기록만
-  // 온전히 볼 수 있고, 다른 직원의 업무 중에서는 특이사항 또는 시스템장애로
-  // 등록된 것만(제한된 내용으로) 확인할 수 있어요. 출장/경비/야근/복지비는
-  // 기존과 동일하게 일반 직원 화면에는 아예 노출되지 않아요.
+  // 온전히 볼 수 있고, 다른 직원의 업무 중에서는 특이사항·시스템장애·장애조치로
+  // 등록된 것만(제한된 내용으로) 확인할 수 있어요. 장애(incident)는 여러 직원이
+  // 함께 조치이력을 쌓아가는 공유 자원이라 근무기록처럼 항상 전체 공개해요.
+  // 출장/경비/야근/복지비는 기존과 동일하게 일반 직원 화면에는 아예 노출되지 않아요.
   function visibleDayEntries(dateStr){
     var all = entriesForDate(dateStr);
     if(isAdminUser()) return all;
     return all.filter(function(e){
-      if(e.type === 'attendance') return true;
+      if(e.type === 'attendance' || e.type === 'incident') return true;
       if(e.type !== 'task') return false;
       if(!currentEmployee || e.employeeId === currentEmployee.id) return true;
-      return !!(e.hasSpecialNote || e.hasSystemFailure);
+      return !!(e.hasSpecialNote || e.hasSystemFailure || e.taskCategory === 'incidentAction');
     });
   }
   // 다른 직원이 등록한 업무라서 제한된(특이사항/시스템장애만) 내용으로 보여줘야 하는지
@@ -2536,10 +2575,11 @@
         specialMark.textContent = '🚨';
         cell.appendChild(specialMark);
       }
-      // 시스템장애로 등록된 업무일지가 있으면, 첨부한 사진이 있는 경우 그 사진을
-      // 작게 달력에 표시하고(없으면 아이콘으로 대체) 장애가 있었던 날을 바로 알아볼 수 있게 해요.
+      // 장애(레거시 업무일지 내장형 / 신규 장애 등록 / 장애조치 업무일지)가 있으면,
+      // 첨부한 사진이 있는 경우 그 사진을 작게 달력에 표시하고(없으면 아이콘으로
+      // 대체) 장애 관련 활동이 있었던 날을 바로 알아볼 수 있게 해요.
       var systemFailureEntry = dayEntries.find(function(e){
-        return e.type === 'task' && e.hasSystemFailure;
+        return (e.type === 'task' && (e.hasSystemFailure || e.taskCategory === 'incidentAction')) || e.type === 'incident';
       });
       if(systemFailureEntry){
         if(systemFailureEntry.failureImage){
@@ -2571,6 +2611,7 @@
         if(types.welfare){ var dw=document.createElement('span'); dw.className='dot dot-welfare'; dotrow.appendChild(dw); }
         if(types.task){ var dk=document.createElement('span'); dk.className='dot dot-task'; dotrow.appendChild(dk); }
         if(types.attendance){ var da=document.createElement('span'); da.className='dot dot-attendance'; dotrow.appendChild(da); }
+        if(types.incident){ var dinc=document.createElement('span'); dinc.className='dot dot-incident'; dotrow.appendChild(dinc); }
         cell.appendChild(dotrow);
 
         var iconrow = document.createElement('div');
@@ -2581,6 +2622,7 @@
         if(types.welfare){ var iw=document.createElement('span'); iw.textContent=TYPE_META.welfare.icon; iconrow.appendChild(iw); }
         if(types.task){ var ik=document.createElement('span'); ik.textContent=TYPE_META.task.icon; iconrow.appendChild(ik); }
         if(types.attendance){ var ia=document.createElement('span'); ia.textContent=TYPE_META.attendance.icon; iconrow.appendChild(ia); }
+        if(types.incident){ var iinc=document.createElement('span'); iinc.textContent=TYPE_META.incident.icon; iconrow.appendChild(iinc); }
         cell.appendChild(iconrow);
       }
       cell.addEventListener('click', function(){
@@ -2611,7 +2653,18 @@
     overtime: { icon:'🌙', label:'야근' },
     welfare: { icon:'🎁', label:'복지비' },
     task: { icon:'📝', label:'업무' },
-    attendance: { icon:'🗓️', label:'근무기록' }
+    attendance: { icon:'🗓️', label:'근무기록' },
+    incident: { icon:'🖥️', label:'장애' }
+  };
+  // 장애 상태값과 표시용 아이콘/색상. 장애는 한 번만 등록하고, 처리 과정은
+  // 상태값을 바꿔가며 조치이력을 누적하는 방식으로 관리해요.
+  var INCIDENT_STATUSES = ['접수','조치중','보류','완료','종결'];
+  var INCIDENT_STATUS_META = {
+    '접수': { icon:'🔵', color:'var(--blue)' },
+    '조치중': { icon:'🟠', color:'var(--brick)' },
+    '보류': { icon:'🟡', color:'var(--olive)' },
+    '완료': { icon:'🟢', color:'var(--pine)' },
+    '종결': { icon:'⚫', color:'var(--ink-soft)' }
   };
 
   function niceDate(dateStr){
@@ -2652,7 +2705,7 @@
     html += '<button class="tagbtn attendance" id="addAttendanceBtn" type="button"><span class="tagicon">🗓️</span>근무기록</button>';
     html += '</div>';
 
-    var DAY_DETAIL_TYPE_ORDER = { task:0, attendance:1, trip:2, expense:3, overtime:4, welfare:5 };
+    var DAY_DETAIL_TYPE_ORDER = { incident:0, task:1, attendance:2, trip:3, expense:4, overtime:5, welfare:6 };
     var dayEntriesSource = visibleDayEntries(selectedDate);
     var dayEntries = dayEntriesSource.slice().sort(function(a,b){
       var orderA = DAY_DETAIL_TYPE_ORDER[a.type] != null ? DAY_DETAIL_TYPE_ORDER[a.type] : 99;
@@ -2691,7 +2744,14 @@
           }
           html += '시스템장애</span>';
         }
-        if(e.type !== 'task' && e.type !== 'attendance'){
+        if(e.type === 'task' && e.taskCategory === 'incidentAction'){
+          html += '<span class="record-badge task" style="background:var(--brick);color:#fff;">🖥️ 장애조치</span>';
+        }
+        if(e.type === 'incident'){
+          var dayStatusMeta = INCIDENT_STATUS_META[e.status] || INCIDENT_STATUS_META['접수'];
+          html += '<span class="record-badge incident" style="background:'+dayStatusMeta.color+';color:#fff;">'+dayStatusMeta.icon+' '+escapeHtml(e.status||'접수')+'</span>';
+        }
+        if(e.type !== 'task' && e.type !== 'attendance' && e.type !== 'incident'){
           html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
         }
         html += '</div>';
@@ -2699,11 +2759,13 @@
         if(!limitedView && e.receiptImage){
           html += '<img src="'+e.receiptImage+'" class="receipt-thumb-small" data-receipt-view="'+e.id+'" style="max-width:60px;max-height:60px;border-radius:6px;border:1px solid var(--line);margin-top:6px;cursor:pointer;display:block;">';
         }
-        if(e.type === 'task' && e.hasSystemFailure && e.failureImage){
+        if((e.type === 'task' && e.hasSystemFailure && e.failureImage) || (e.type === 'incident' && e.failureImage)){
           html += '<img src="'+e.failureImage+'" class="receipt-thumb-small" data-failure-view="'+e.id+'" style="max-width:60px;max-height:60px;border-radius:6px;border:1px solid var(--line);margin-top:6px;cursor:pointer;display:block;">';
         }
         html += '<div class="record-actions">';
-        if(!canEditEntry(e)){
+        if(e.type === 'incident'){
+          html += '<button class="cancelbtn" data-inc-open="'+e.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">📋 상세보기 · 조치이력</button>';
+        }else if(!canEditEntry(e)){
           html += '<span style="font-size:12px;color:var(--ink-soft);">🔒 다른 직원의 기록이라 읽기만 가능해요</span>';
         }else if(isConfirming){
           html += '<span style="font-size:12.5px;color:var(--brick);">정말 삭제할까요?</span>';
@@ -2728,7 +2790,7 @@
     if(addOvertimeBtnEl) addOvertimeBtnEl.addEventListener('click', function(){ openOvertimeForm(null); });
     var addWelfareBtnEl = document.getElementById('addWelfareBtn');
     if(addWelfareBtnEl) addWelfareBtnEl.addEventListener('click', function(){ openWelfareForm(null); });
-    document.getElementById('addTaskBtn').addEventListener('click', function(){ openTaskForm(null); });
+    document.getElementById('addTaskBtn').addEventListener('click', function(){ openTaskChooser(); });
     document.getElementById('addAttendanceBtn').addEventListener('click', function(){ openAttendanceForm(null); });
     inner.querySelectorAll('[data-receipt-view]').forEach(function(img){
       img.addEventListener('click', function(){
@@ -2744,6 +2806,14 @@
         var e = entries.find(function(x){ return x.id === id; });
         if(!e || !e.failureImage) return;
         openImageViewer(e.failureImage);
+      });
+    });
+    inner.querySelectorAll('[data-inc-open]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = btn.getAttribute('data-inc-open');
+        var e = entries.find(function(x){ return x.id === id; });
+        if(!e) return;
+        openIncidentForm(e);
       });
     });
     inner.querySelectorAll('[data-edit]').forEach(function(btn){
@@ -2828,11 +2898,18 @@
       return escapeHtml(p4.join(' · ') || '복지비 기록');
     }
     if(e.type === 'task' && limitedView){
-      // 다른 직원의 업무는 특이사항/시스템장애로 등록된 내용만 보여줘요.
-      // "오늘 한 일" 본문과 ⭐ 중요 표시는 본인 업무가 아니면 노출하지 않아요.
+      // 다른 직원의 업무는 특이사항/시스템장애(레거시)/장애조치로 등록된 내용만
+      // 보여줘요. "오늘 한 일" 본문과 ⭐ 중요 표시는 본인 업무가 아니면 노출하지
+      // 않지만, 장애조치의 조치내용은 그 자체가 장애 관련 공유 정보라 보여줘요.
       var limitedParts = [];
       if(e.hasSpecialNote && e.specialNote){
         limitedParts.push('<span style="color:var(--brick);">특이사항: '+escapeHtml(e.specialNote.slice(0,60))+'</span>');
+      }
+      if(e.taskCategory === 'incidentAction'){
+        var linkedIncL = e.linkedIncidentId ? entries.find(function(x){ return x.id === e.linkedIncidentId && x.type === 'incident'; }) : null;
+        var incLine = '<span style="color:var(--brick);font-weight:600;">🖥️ 장애조치'+(linkedIncL && linkedIncL.failureSymptom ? (' · '+escapeHtml(linkedIncL.failureSymptom.slice(0,30))) : '')+'</span>';
+        incLine += '<br><span style="color:var(--ink-soft);">조치내용: '+escapeHtml((e.content||'').slice(0,80))+'</span>';
+        limitedParts.push(incLine);
       }
       if(e.hasSystemFailure){
         var failMetaL = [];
@@ -2850,10 +2927,19 @@
       var taskParts = [];
       if(e.important) taskParts.push('⭐');
       if(e.hasSpecialNote) taskParts.push('🚨');
+      if(e.taskCategory === 'incidentAction') taskParts.push('🖥️');
       taskParts.push((e.content||'').slice(0,60));
       var summary = escapeHtml(taskParts.join(' '));
       if(e.hasSpecialNote && e.specialNote){
         summary += '<br><span style="color:var(--brick);">특이사항: '+escapeHtml(e.specialNote.slice(0,60))+'</span>';
+      }
+      if(e.taskCategory === 'incidentAction' && e.linkedIncidentId){
+        var linkedInc = entries.find(function(x){ return x.id === e.linkedIncidentId && x.type === 'incident'; });
+        if(linkedInc){
+          summary += '<br><span style="color:var(--ink-soft);font-size:12px;">관련 장애: '+escapeHtml((linkedInc.failureSymptom||'장애').slice(0,30))+'</span>';
+        }else{
+          summary += '<br><span style="color:var(--ink-soft);font-size:12px;">관련 장애: (삭제된 장애예요)</span>';
+        }
       }
       if(e.hasSystemFailure){
         var failMeta = [];
@@ -2865,6 +2951,18 @@
         if(e.failureCause) summary += '<br><span style="color:var(--ink-soft);">원인: '+escapeHtml(e.failureCause.slice(0,80))+'</span>';
       }
       return summary;
+    }
+    if(e.type === 'incident'){
+      var incParts = [];
+      if(e.failureType) incParts.push(e.failureType);
+      if(e.failureGrade) incParts.push(e.failureGrade);
+      var incSummary = escapeHtml(incParts.join(' · ') || '장애');
+      if(e.failureSymptom) incSummary += '<br><span>'+escapeHtml(e.failureSymptom.slice(0,80))+'</span>';
+      if(e.failureCause) incSummary += '<br><span style="color:var(--ink-soft);">원인: '+escapeHtml(e.failureCause.slice(0,80))+'</span>';
+      if(e.plan) incSummary += '<br><span style="color:var(--ink-soft);">조치계획: '+escapeHtml(e.plan.slice(0,80))+'</span>';
+      var histCount = Array.isArray(e.actionHistory) ? e.actionHistory.length : 0;
+      if(histCount > 0) incSummary += '<br><span style="color:var(--ink-soft);font-size:12px;">📋 조치이력 '+histCount+'건</span>';
+      return incSummary;
     }
     if(e.type === 'attendance'){
       var emp = employees.find(function(x){ return x.id === e.employeeId; });
@@ -9057,7 +9155,7 @@
   }
   // prefix별로 "사진 추가" 버튼 문구를 다르게 보여주고 싶을 때 여기에 등록해요
   // (예: 시스템장애 사진은 "영수증 사진"이 아니라 "장애상황 사진"이라고 불러야 해요).
-  var RECEIPT_ADD_LABELS = { tk_fail: '📷 장애상황 사진 추가' };
+  var RECEIPT_ADD_LABELS = { tk_fail: '📷 장애상황 사진 추가', inc: '📷 장애상황 사진 추가' };
   function receiptPreviewHTML(prefix){
     if(currentReceiptImage){
       return '<div style="position:relative;display:inline-block;">'+
@@ -9321,7 +9419,7 @@
   // 권한적용: 스위치를 끄면 일반 직원 화면에서 그 기능이 아예 보이지 않아요
   // (관리자 화면에는 영향이 없어요).
   var PERMISSION_TOGGLES = [
-    { key: 'taskSystemFailure', icon: '🖥️', label: '업무일지 시스템장애', hint: '업무일지 등록 화면의 "시스템장애" 체크·입력 항목을 일반 직원에게 보여줄지 정해요.' },
+    { key: 'taskSystemFailure', icon: '🖥️', label: '장애 관리', hint: '업무 버튼의 "장애 등록" 선택지와, 업무일지의 "장애조치" 업무유형(장애 연계)을 일반 직원에게 보여줄지 정해요.' },
     { key: 'suggestionBox', icon: '📮', label: '건의함', hint: '달력화면의 건의함 등록 버튼을 일반 직원에게 보여줄지 정해요.' },
     { key: 'community', icon: '🖼️', label: '커뮤니티', hint: '달력화면의 커뮤니티 버튼을 일반 직원에게 보여줄지 정해요.' },
     { key: 'myAward', icon: '🏅', label: 'MY정보 상벌등록', hint: 'MY정보 화면의 "상벌 등록" 항목을 일반 직원에게 보여줄지 정해요.', group: 'MY정보' },
@@ -9612,42 +9710,72 @@
   var editingTaskId = null;
   var FAILURE_TYPES = ['시스템','네트워크','미들웨어','DB','보안','응용'];
   var FAILURE_GRADES = ['1등급','2등급','3등급','4등급','무등급'];
+  // 업무 버튼 클릭 시 업무일지 등록 / 장애 등록으로 분기해요. 관리자가 설정 >
+  // 권한적용에서 장애 관리 기능을 꺼둔 일반 직원 화면에서는 고를 게 하나뿐이니
+  // 선택창 없이 바로 업무일지 등록으로 보내요.
+  function openTaskChooser(){
+    var incidentFeatureAllowed = isAdminUser() || featurePermissions.taskSystemFailure !== false;
+    if(!incidentFeatureAllowed){
+      openTaskForm(null);
+      return;
+    }
+    openSheet('taskChooserSheet');
+  }
   function openTaskForm(existing){
     editingTaskId = existing ? existing.id : null;
     var e = existing || {};
     var body = document.getElementById('taskFormBody');
-    currentReceiptImage = e.failureImage || null;
+
+    // 설정 > 권한적용에서 일반 직원에게 장애 관리 기능을 꺼뒀으면 관리자가 아닌
+    // 이상 "장애조치" 업무유형 자체를 선택할 수 없어요.
+    var incidentFeatureAllowed = isAdminUser() || featurePermissions.taskSystemFailure !== false;
+    var initialCategory = (e.taskCategory === 'incidentAction' && incidentFeatureAllowed) ? 'incidentAction' : 'general';
 
     var html = '';
     html += '<div class="field"><span class="field-label field-label-strong">📅 날짜</span><input type="date" id="tk_date" value="'+(e.date||selectedDate)+'"></div>';
     html += '<label class="checklist-item"><input type="checkbox" id="tk_important"'+(e.important?' checked':'')+'><span>⭐ 중요 표시 (달력에 마크로 보여요)</span></label>';
-    html += '<div class="field"><span class="field-label field-label-strong">📝 오늘 한 일</span><textarea id="tk_content" placeholder="오늘 한 업무를 간단히 적어주세요" rows="4">'+escapeHtml(e.content||'')+'</textarea></div>';
+
+    if(incidentFeatureAllowed){
+      html += '<div class="field"><span class="field-label">업무 유형</span><div class="chiprow" id="tk_categoryChips">';
+      html += '<button class="chip'+(initialCategory==='general'?' selected':'')+'" data-val="general" type="button">📝 일반 업무</button>';
+      html += '<button class="chip'+(initialCategory==='incidentAction'?' selected':'')+'" data-val="incidentAction" type="button">🖥️ 장애조치</button>';
+      html += '</div></div>';
+    }
+
+    html += '<div class="field"><span class="field-label field-label-strong" id="tk_contentLabel">'+(initialCategory==='incidentAction'?'🖥️ 조치 내용':'📝 오늘 한 일')+'</span><textarea id="tk_content" placeholder="'+(initialCategory==='incidentAction'?'오늘 수행한 조치 내용을 적어주세요':'오늘 한 업무를 간단히 적어주세요')+'" rows="4">'+escapeHtml(e.content||'')+'</textarea></div>';
+
+    if(incidentFeatureAllowed){
+      var incidentOptions = entries.filter(function(x){ return x.type === 'incident'; }).slice().sort(function(a,b){ return (a.date||'') < (b.date||'') ? 1 : -1; });
+      html += '<div class="field" id="tk_linkedIncidentField" style="display:'+(initialCategory==='incidentAction'?'block':'none')+';">';
+      html += '<span class="field-label field-label-strong">관련 장애 선택</span><select id="tk_linkedIncident">';
+      if(incidentOptions.length === 0){
+        html += '<option value="">등록된 장애가 없어요 (먼저 장애를 등록해주세요)</option>';
+      }else{
+        incidentOptions.forEach(function(inc){
+          var statusIcon = (INCIDENT_STATUS_META[inc.status]||{}).icon || '';
+          var label = statusIcon+' '+(inc.failureSymptom||'장애').slice(0,24)+' ('+inc.date+')';
+          html += '<option value="'+inc.id+'"'+(e.linkedIncidentId===inc.id?' selected':'')+'>'+escapeHtml(label)+'</option>';
+        });
+      }
+      html += '</select>';
+      html += '<div class="field" style="margin-top:10px;"><span class="field-label">상태 변경 (선택)</span><select id="tk_incidentStatus"><option value="">변경 안 함</option>';
+      INCIDENT_STATUSES.forEach(function(s){
+        html += '<option value="'+s+'">'+INCIDENT_STATUS_META[s].icon+' '+s+'</option>';
+      });
+      html += '</select></div>';
+      html += '</div>';
+    }
+
     html += '<label class="checklist-item"><input type="checkbox" id="tk_hasSpecialNote"'+(e.hasSpecialNote?' checked':'')+'><span>🚨 특이사항 (달력에 마크로 보여요)</span></label>';
     html += '<div class="field"><span class="field-label field-label-strong">특이사항</span><textarea id="tk_specialNote" placeholder="특이사항이 있다면 적어주세요" rows="3">'+escapeHtml(e.specialNote||'')+'</textarea></div>';
 
-    // 설정 > 권한적용에서 일반 직원에게 시스템장애 항목을 꺼뒀으면 관리자가 아닌
-    // 이상 이 섹션 자체를 렌더링하지 않아요(체크박스도 안 보여요).
-    var showFailureSection = isAdminUser() || featurePermissions.taskSystemFailure !== false;
-    if(showFailureSection){
-      html += '<label class="checklist-item"><input type="checkbox" id="tk_hasSystemFailure"'+(e.hasSystemFailure?' checked':'')+'><span>🖥️ 시스템장애 (체크하면 상세 정보를 입력해요, 달력에 마크로 보여요)</span></label>';
-      html += '<div id="tk_failureFields" style="display:'+(e.hasSystemFailure?'block':'none')+';border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px;">';
-      html += '<div class="field"><span class="field-label field-label-strong">장애 유형</span><select id="tk_failureType">';
-      FAILURE_TYPES.forEach(function(t){
-        html += '<option value="'+t+'"'+(e.failureType===t?' selected':'')+'>'+t+'</option>';
-      });
-      html += '</select></div>';
-      html += '<div class="field"><span class="field-label field-label-strong">장애현상</span><textarea id="tk_failureSymptom" placeholder="장애 현상을 적어주세요" rows="2">'+escapeHtml(e.failureSymptom||'')+'</textarea></div>';
-      html += '<div class="field"><span class="field-label field-label-strong">장애조치내역</span><textarea id="tk_failureAction" placeholder="조치 내역을 적어주세요" rows="2">'+escapeHtml(e.failureAction||'')+'</textarea></div>';
-      html += '<div class="field"><span class="field-label field-label-strong">원인</span><textarea id="tk_failureCause" placeholder="장애 원인을 적어주세요" rows="2">'+escapeHtml(e.failureCause||'')+'</textarea></div>';
-      html += '<div class="field"><span class="field-label field-label-strong">장애등급</span><select id="tk_failureGrade">';
-      FAILURE_GRADES.forEach(function(g){
-        html += '<option value="'+g+'"'+(e.failureGrade===g?' selected':'')+'>'+g+'</option>';
-      });
-      html += '</select></div>';
-      html += '<div class="field"><span class="field-label">장애 관련 사진 (선택, 달력에 표시돼요)</span>';
-      html += '<input type="file" accept="image/*" id="tk_fail_receiptInput" style="display:none;">';
-      html += '<div id="tk_fail_receiptPreview">'+receiptPreviewHTML('tk_fail')+'</div>';
-      html += '</div>';
+    // 이 업무일지 등록 화면에서 시스템장애를 직접 기록하던 예전 방식은 "장애등록"
+    // 기능으로 분리됐어요. 분리 이전에 이미 등록돼 있던 업무일지의 시스템장애
+    // 정보는 지우지 않고 그대로 보존해서 달력·상세화면에는 계속 예전처럼
+    // 보이지만, 이 폼에서는 더 이상 편집 항목을 보여주지 않아요.
+    if(e.hasSystemFailure){
+      html += '<div class="field" style="border:1px solid var(--line);border-radius:10px;padding:10px 12px;">';
+      html += '<p class="savehint">🖥️ 이 업무일지에는 예전 방식으로 등록된 시스템장애 정보가 남아있어요. 장애 관리 기능이 "장애 등록"으로 분리되면서 이 화면에서는 더 이상 수정할 수 없어요(내용은 그대로 보여요).</p>';
       html += '</div>';
     }
 
@@ -9663,15 +9791,23 @@
 
     document.getElementById('tk_cancelBtn').addEventListener('click', function(){ closeSheet('taskSheet'); });
     document.getElementById('tk_saveBtn').addEventListener('click', saveTaskForm);
-    if(showFailureSection){
-      document.getElementById('tk_hasSystemFailure').addEventListener('change', function(){
-        document.getElementById('tk_failureFields').style.display = this.checked ? 'block' : 'none';
+    if(incidentFeatureAllowed){
+      document.querySelectorAll('#tk_categoryChips .chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          document.querySelectorAll('#tk_categoryChips .chip').forEach(function(x){ x.classList.remove('selected'); });
+          c.classList.add('selected');
+          var isIncident = c.getAttribute('data-val') === 'incidentAction';
+          document.getElementById('tk_linkedIncidentField').style.display = isIncident ? 'block' : 'none';
+          document.getElementById('tk_contentLabel').textContent = isIncident ? '🖥️ 조치 내용' : '📝 오늘 한 일';
+          document.getElementById('tk_content').placeholder = isIncident ? '오늘 수행한 조치 내용을 적어주세요' : '오늘 한 업무를 간단히 적어주세요';
+        });
       });
-      wireReceiptField('tk_fail');
     }
     var tkDelBtn = document.getElementById('tk_deleteBtn');
     if(tkDelBtn){
       tkDelBtn.addEventListener('click', async function(){
+        var delEntry = entries.find(function(x){ return x.id === editingTaskId; });
+        if(delEntry) removeLinkedIncidentHistory(delEntry);
         entries = entries.filter(function(x){ return x.id !== editingTaskId; });
         await saveEntries();
         closeSheet('taskSheet');
@@ -9688,10 +9824,28 @@
     }
     var now = new Date().toISOString();
     var existingTaskEntry = editingTaskId ? entries.find(function(x){return x.id===editingTaskId;}) : null;
-    // 권한적용으로 시스템장애 섹션 자체가 안 보이는 화면(일반 직원, 기능 꺼짐)에서는
-    // 관련 입력창이 DOM에 없어요 — 이 경우 기존에 저장돼 있던 값을 그대로 보존해요
-    // (직원이 못 보는 항목을 저장할 때마다 지워버리면 안 되니까요).
-    var hasFailureSection = !!document.getElementById('tk_hasSystemFailure');
+
+    // 권한적용에서 장애 관리 기능이 꺼져 있으면 업무유형 선택 UI 자체가
+    // 렌더되지 않아요. 이미 "장애조치"로 연결돼 있던 기존 업무일지를 그
+    // 상태에서 내용만 고쳐 저장해도 연결이 끊기지 않도록, UI가 없을 때는
+    // 기존 값을 그대로 이어받아요(레거시 시스템장애 필드와 같은 원칙).
+    var categoryEl = document.getElementById('tk_categoryChips');
+    var taskCategory = existingTaskEntry ? (existingTaskEntry.taskCategory || 'general') : 'general';
+    if(categoryEl){
+      var selectedChip = categoryEl.querySelector('.chip.selected');
+      taskCategory = selectedChip ? selectedChip.getAttribute('data-val') : 'general';
+    }
+    var linkedIncidentId = existingTaskEntry ? (existingTaskEntry.linkedIncidentId || null) : null;
+    var incidentStatusChange = '';
+    if(taskCategory === 'incidentAction'){
+      var linkEl = document.getElementById('tk_linkedIncident');
+      if(linkEl){
+        linkedIncidentId = linkEl.value ? linkEl.value : null;
+        var statusEl = document.getElementById('tk_incidentStatus');
+        incidentStatusChange = statusEl ? statusEl.value : '';
+      }
+    }
+
     var payload = {
       id: editingTaskId || uid(),
       type: 'task',
@@ -9700,17 +9854,25 @@
       important: document.getElementById('tk_important').checked,
       hasSpecialNote: document.getElementById('tk_hasSpecialNote').checked,
       specialNote: document.getElementById('tk_specialNote').value.trim(),
-      hasSystemFailure: hasFailureSection ? document.getElementById('tk_hasSystemFailure').checked : !!(existingTaskEntry && existingTaskEntry.hasSystemFailure),
-      failureType: hasFailureSection ? document.getElementById('tk_failureType').value : (existingTaskEntry ? existingTaskEntry.failureType : ''),
-      failureSymptom: hasFailureSection ? document.getElementById('tk_failureSymptom').value.trim() : (existingTaskEntry ? existingTaskEntry.failureSymptom : ''),
-      failureAction: hasFailureSection ? document.getElementById('tk_failureAction').value.trim() : (existingTaskEntry ? existingTaskEntry.failureAction : ''),
-      failureCause: hasFailureSection ? document.getElementById('tk_failureCause').value.trim() : (existingTaskEntry ? existingTaskEntry.failureCause : ''),
-      failureGrade: hasFailureSection ? document.getElementById('tk_failureGrade').value : (existingTaskEntry ? existingTaskEntry.failureGrade : ''),
-      failureImage: hasFailureSection ? (currentReceiptImage || null) : (existingTaskEntry ? existingTaskEntry.failureImage : null),
+      // 장애 관리 기능 분리 이전의 레거시 시스템장애 정보는 이 폼에서 더 이상
+      // 입력받지 않고, 기존 값을 그대로 보존해요.
+      hasSystemFailure: existingTaskEntry ? !!existingTaskEntry.hasSystemFailure : false,
+      failureType: existingTaskEntry ? (existingTaskEntry.failureType || '') : '',
+      failureSymptom: existingTaskEntry ? (existingTaskEntry.failureSymptom || '') : '',
+      failureAction: existingTaskEntry ? (existingTaskEntry.failureAction || '') : '',
+      failureCause: existingTaskEntry ? (existingTaskEntry.failureCause || '') : '',
+      failureGrade: existingTaskEntry ? (existingTaskEntry.failureGrade || '') : '',
+      failureImage: existingTaskEntry ? (existingTaskEntry.failureImage || null) : null,
+      taskCategory: taskCategory,
+      linkedIncidentId: taskCategory === 'incidentAction' ? linkedIncidentId : null,
+      actionHistoryId: existingTaskEntry ? existingTaskEntry.actionHistoryId : null,
       employeeId: existingTaskEntry ? existingTaskEntry.employeeId : (currentEmployee ? currentEmployee.id : null),
       createdAt: existingTaskEntry ? existingTaskEntry.createdAt || now : now,
       updatedAt: now
     };
+
+    syncTaskWithLinkedIncident(payload, existingTaskEntry, incidentStatusChange);
+
     if(editingTaskId){
       var idx = entries.findIndex(function(x){ return x.id === editingTaskId; });
       if(idx >= 0) entries[idx] = payload; else entries.push(payload);
@@ -9720,6 +9882,242 @@
     await saveEntries();
     closeSheet('taskSheet');
     refreshAfterSave();
+  }
+  // 업무일지(장애조치)를 저장할 때, 연결된 장애의 조치이력을 함께 맞춰줘요.
+  // 같은 업무일지를 다시 수정 저장하면 새 이력을 추가하는 게 아니라 기존에
+  // 만들어둔 이력 항목을 갱신해서 중복이 쌓이지 않도록 해요.
+  function syncTaskWithLinkedIncident(payload, existingTaskEntry, statusChange){
+    var prevIncidentId = existingTaskEntry ? existingTaskEntry.linkedIncidentId : null;
+    var prevHistoryId = existingTaskEntry ? existingTaskEntry.actionHistoryId : null;
+    // 연결된 장애가 이번 저장에서 바뀌었거나 해제됐으면, 예전 장애에 남아있던
+    // 조치이력 항목을 정리해요(중복/유령 이력 방지).
+    if(prevIncidentId && prevHistoryId && prevIncidentId !== payload.linkedIncidentId){
+      var prevInc = entries.find(function(x){ return x.id === prevIncidentId && x.type === 'incident'; });
+      if(prevInc && Array.isArray(prevInc.actionHistory)){
+        prevInc.actionHistory = prevInc.actionHistory.filter(function(h){ return h.id !== prevHistoryId; });
+        prevInc.updatedAt = new Date().toISOString();
+      }
+    }
+    if(payload.taskCategory !== 'incidentAction' || !payload.linkedIncidentId){
+      payload.actionHistoryId = null;
+      return;
+    }
+    var inc = entries.find(function(x){ return x.id === payload.linkedIncidentId && x.type === 'incident'; });
+    if(!inc){ payload.actionHistoryId = null; return; }
+    if(!Array.isArray(inc.actionHistory)) inc.actionHistory = [];
+    var authorName = currentEmployee ? currentEmployee.name : '관리자';
+    var authorId = currentEmployee ? currentEmployee.id : null;
+    var reuseId = (prevIncidentId === payload.linkedIncidentId && prevHistoryId) ? prevHistoryId : null;
+    var histId = reuseId || ('h'+uid());
+    var histItem = {
+      id: histId,
+      date: payload.date,
+      content: payload.content,
+      authorId: authorId,
+      authorName: authorName,
+      fromTaskId: payload.id,
+      statusAfter: statusChange || null,
+      createdAt: new Date().toISOString()
+    };
+    var existingHistIdx = inc.actionHistory.findIndex(function(h){ return h.id === histId; });
+    if(existingHistIdx >= 0) inc.actionHistory[existingHistIdx] = histItem;
+    else inc.actionHistory.push(histItem);
+    payload.actionHistoryId = histId;
+    if(statusChange) inc.status = statusChange;
+    inc.updatedAt = new Date().toISOString();
+  }
+  // 장애조치로 연결된 업무일지를 삭제할 때, 장애 쪽에 남아있는 조치이력
+  // 항목도 함께 지워서 유령 이력이 남지 않게 해요.
+  function removeLinkedIncidentHistory(taskEntry){
+    if(!taskEntry || !taskEntry.linkedIncidentId || !taskEntry.actionHistoryId) return;
+    var inc = entries.find(function(x){ return x.id === taskEntry.linkedIncidentId && x.type === 'incident'; });
+    if(inc && Array.isArray(inc.actionHistory)){
+      inc.actionHistory = inc.actionHistory.filter(function(h){ return h.id !== taskEntry.actionHistoryId; });
+      inc.updatedAt = new Date().toISOString();
+    }
+  }
+
+  // ---------- Incident (장애) form ----------
+  // 장애는 발생 시 한 번만 등록하고, 이후 처리 과정(조치계획→조치이력)은 이
+  // 화면에서 계속 이어서 기록해요. 기본정보 수정/삭제는 관리자 또는 최초
+  // 등록자만 할 수 있지만, "조치이력 추가"는 여러 직원이 날짜별로 이어서
+  // 처리하는 구조라 canEditEntry와 무관하게 누구나 할 수 있어요.
+  var editingIncidentId = null;
+  function openIncidentForm(existing){
+    editingIncidentId = existing ? existing.id : null;
+    var e = existing || { status:'접수' };
+    var canEdit = !existing || canEditEntry(existing);
+    currentReceiptImage = canEdit ? (e.failureImage || null) : null;
+    var body = document.getElementById('incidentFormBody');
+
+    var html = '';
+    html += '<div class="field"><span class="field-label field-label-strong">📅 발생일</span><input type="date" id="inc_date" value="'+(e.date||selectedDate)+'"'+(canEdit?'':' disabled')+'></div>';
+    html += '<div class="field"><span class="field-label field-label-strong">장애 유형</span><select id="inc_failureType"'+(canEdit?'':' disabled')+'>';
+    FAILURE_TYPES.forEach(function(t){
+      html += '<option value="'+t+'"'+(e.failureType===t?' selected':'')+'>'+t+'</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="field"><span class="field-label field-label-strong">장애현상</span><textarea id="inc_failureSymptom" placeholder="장애 현상을 적어주세요" rows="2"'+(canEdit?'':' disabled')+'>'+escapeHtml(e.failureSymptom||'')+'</textarea></div>';
+    html += '<div class="field"><span class="field-label field-label-strong">원인</span><textarea id="inc_failureCause" placeholder="장애 원인을 적어주세요" rows="2"'+(canEdit?'':' disabled')+'>'+escapeHtml(e.failureCause||'')+'</textarea></div>';
+    html += '<div class="field"><span class="field-label field-label-strong">장애등급</span><select id="inc_failureGrade"'+(canEdit?'':' disabled')+'>';
+    FAILURE_GRADES.forEach(function(g){
+      html += '<option value="'+g+'"'+(e.failureGrade===g?' selected':'')+'>'+g+'</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="field"><span class="field-label field-label-strong">장애 상태</span><select id="inc_status"'+(canEdit?'':' disabled')+'>';
+    INCIDENT_STATUSES.forEach(function(s){
+      html += '<option value="'+s+'"'+((e.status||'접수')===s?' selected':'')+'>'+INCIDENT_STATUS_META[s].icon+' '+s+'</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="field"><span class="field-label field-label-strong">조치계획</span><textarea id="inc_plan" placeholder="앞으로 어떻게 처리할지 적어주세요" rows="2"'+(canEdit?'':' disabled')+'>'+escapeHtml(e.plan||'')+'</textarea></div>';
+    if(canEdit){
+      html += '<div class="field"><span class="field-label">장애 관련 사진 (선택)</span>';
+      html += '<input type="file" accept="image/*" id="inc_receiptInput" style="display:none;">';
+      html += '<div id="inc_receiptPreview">'+receiptPreviewHTML('inc')+'</div>';
+      html += '</div>';
+    }else if(e.failureImage){
+      html += '<div class="field"><span class="field-label">장애 관련 사진</span><img src="'+e.failureImage+'" data-inc-readonly-img style="max-width:120px;max-height:120px;border-radius:8px;border:1px solid var(--line);cursor:pointer;display:block;"></div>';
+    }
+
+    // ── 조치이력 ──
+    html += '<div style="border-top:1px solid var(--line);margin:16px 0 10px;padding-top:12px;">';
+    html += '<p class="field-label field-label-strong" style="margin-bottom:8px;">📋 조치이력</p>';
+    var history = (e.actionHistory||[]).slice().sort(function(a,b){ return (a.createdAt||a.date||'') < (b.createdAt||b.date||'') ? 1 : -1; });
+    if(history.length === 0){
+      html += '<p class="empty-inline">등록된 조치이력이 없어요.</p>';
+    }else{
+      history.forEach(function(h){
+        html += '<div class="rule-card" style="margin-bottom:8px;">';
+        html += '<p style="font-size:12px;color:var(--ink-soft);">'+escapeHtml(h.date||'')+(h.authorName?' · '+escapeHtml(h.authorName):'')+'</p>';
+        html += '<p style="margin-top:4px;white-space:pre-wrap;">'+escapeHtml(h.content||'')+'</p>';
+        if(h.statusAfter){
+          html += '<p style="margin-top:4px;font-size:12px;color:var(--brick);">상태 → '+((INCIDENT_STATUS_META[h.statusAfter]||{}).icon||'')+' '+escapeHtml(h.statusAfter)+'</p>';
+        }
+        html += '</div>';
+      });
+    }
+    if(existing && canAddIncidentHistory()){
+      html += '<button class="cancelbtn" id="inc_historyAddToggleBtn" type="button" style="width:100%;">＋ 조치이력 추가</button>';
+      html += '<div id="inc_historyAddFields" style="display:none;border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:10px;">';
+      html += '<div class="field"><span class="field-label field-label-strong">날짜</span><input type="date" id="inc_h_date" value="'+todayStr()+'"></div>';
+      html += '<div class="field"><span class="field-label field-label-strong">조치 내용</span><textarea id="inc_h_content" placeholder="오늘 수행한 조치 내용을 적어주세요" rows="3"></textarea></div>';
+      html += '<div class="field"><span class="field-label">상태 변경 (선택)</span><select id="inc_h_status"><option value="">변경 안 함</option>';
+      INCIDENT_STATUSES.forEach(function(s){
+        html += '<option value="'+s+'">'+INCIDENT_STATUS_META[s].icon+' '+s+'</option>';
+      });
+      html += '</select></div>';
+      html += '<button class="savebtn" id="inc_historySaveBtn" type="button" style="width:100%;">조치이력 저장</button>';
+      html += '</div>';
+    }else if(!existing){
+      html += '<p class="savehint">장애를 먼저 저장하면 조치이력을 추가할 수 있어요.</p>';
+    }
+    html += '</div>';
+
+    if(canEdit){
+      html += '<div class="row2">';
+      html += '<button class="cancelbtn" id="inc_cancelBtn" type="button">취소</button>';
+      html += '<button class="savebtn" id="inc_saveBtn" type="button">'+(existing?'수정 저장':'장애 등록')+'</button>';
+      html += '</div>';
+      if(existing){
+        html += '<button class="danger" id="inc_deleteBtn" type="button" style="width:100%;margin-top:10px;">이 장애 기록 삭제</button>';
+      }
+    }else{
+      html += '<button class="cancelbtn" id="inc_cancelBtn" type="button" style="width:100%;">닫기</button>';
+    }
+
+    body.innerHTML = html;
+
+    document.getElementById('inc_cancelBtn').addEventListener('click', function(){ closeSheet('incidentSheet'); });
+    if(canEdit){
+      wireReceiptField('inc');
+      document.getElementById('inc_saveBtn').addEventListener('click', saveIncidentForm);
+      var incDelBtn = document.getElementById('inc_deleteBtn');
+      if(incDelBtn){
+        incDelBtn.addEventListener('click', async function(){
+          entries = entries.filter(function(x){ return x.id !== editingIncidentId; });
+          await saveEntries();
+          closeSheet('incidentSheet');
+          refreshAfterSave();
+        });
+      }
+    }else{
+      var readonlyImg = document.querySelector('[data-inc-readonly-img]');
+      if(readonlyImg){
+        readonlyImg.addEventListener('click', function(){ openImageViewer(readonlyImg.src); });
+      }
+    }
+    var histToggleBtn = document.getElementById('inc_historyAddToggleBtn');
+    if(histToggleBtn){
+      histToggleBtn.addEventListener('click', function(){
+        var fields = document.getElementById('inc_historyAddFields');
+        fields.style.display = fields.style.display === 'none' ? 'block' : 'none';
+      });
+    }
+    var histSaveBtn = document.getElementById('inc_historySaveBtn');
+    if(histSaveBtn){
+      histSaveBtn.addEventListener('click', saveIncidentHistoryEntry);
+    }
+    openSheet('incidentSheet');
+  }
+  async function saveIncidentForm(){
+    var failureSymptom = document.getElementById('inc_failureSymptom').value.trim();
+    if(!failureSymptom){
+      document.getElementById('inc_failureSymptom').focus();
+      return;
+    }
+    var now = new Date().toISOString();
+    var existingInc = editingIncidentId ? entries.find(function(x){ return x.id === editingIncidentId; }) : null;
+    var payload = {
+      id: editingIncidentId || uid(),
+      type: 'incident',
+      date: document.getElementById('inc_date').value || selectedDate,
+      failureType: document.getElementById('inc_failureType').value,
+      failureSymptom: failureSymptom,
+      failureCause: document.getElementById('inc_failureCause').value.trim(),
+      failureGrade: document.getElementById('inc_failureGrade').value,
+      status: document.getElementById('inc_status').value || '접수',
+      plan: document.getElementById('inc_plan').value.trim(),
+      failureImage: currentReceiptImage || null,
+      actionHistory: existingInc ? (existingInc.actionHistory || []) : [],
+      employeeId: existingInc ? existingInc.employeeId : (currentEmployee ? currentEmployee.id : null),
+      createdAt: existingInc ? existingInc.createdAt || now : now,
+      updatedAt: now
+    };
+    if(editingIncidentId){
+      var idx = entries.findIndex(function(x){ return x.id === editingIncidentId; });
+      if(idx >= 0) entries[idx] = payload; else entries.push(payload);
+    }else{
+      entries.push(payload);
+    }
+    await saveEntries();
+    closeSheet('incidentSheet');
+    refreshAfterSave();
+  }
+  async function saveIncidentHistoryEntry(){
+    var content = document.getElementById('inc_h_content').value.trim();
+    if(!content){
+      document.getElementById('inc_h_content').focus();
+      return;
+    }
+    var inc = entries.find(function(x){ return x.id === editingIncidentId && x.type === 'incident'; });
+    if(!inc) return;
+    if(!Array.isArray(inc.actionHistory)) inc.actionHistory = [];
+    var statusChange = document.getElementById('inc_h_status').value;
+    inc.actionHistory.push({
+      id: 'h'+uid(),
+      date: document.getElementById('inc_h_date').value || todayStr(),
+      content: content,
+      authorId: currentEmployee ? currentEmployee.id : null,
+      authorName: currentEmployee ? currentEmployee.name : '관리자',
+      fromTaskId: null,
+      statusAfter: statusChange || null,
+      createdAt: new Date().toISOString()
+    });
+    if(statusChange) inc.status = statusChange;
+    inc.updatedAt = new Date().toISOString();
+    await saveEntries();
+    refreshAfterSave();
+    openIncidentForm(inc);
   }
 
   // ---------- Attendance (근무기록) form ----------
@@ -10452,7 +10850,7 @@
         '날짜': e.date,
         '유형': meta.label,
         '내용': unescapeHtml(recordSummary(e, isOtherEmployeeTask(e))),
-        '금액': e.type === 'task' ? '' : recordAmount(e),
+        '금액': (e.type === 'task' || e.type === 'incident') ? '' : recordAmount(e),
         '정산상태': e.settlementStatus ? (SETTLEMENT_LABEL[e.settlementStatus]||'') : '',
         '입금일': e.depositDate || '',
         '비고': e.note || e.memo || ''
@@ -10474,8 +10872,8 @@
       // 일반 권한은 출장/경비/야근/복지비 기록을 통계에서 볼 수 없음
       if(!admin && (e.type === 'trip' || e.type === 'expense' || e.type === 'overtime' || e.type === 'welfare')) return false;
       // 일반 권한은 업무(task) 중 본인이 등록한 것과, 다른 직원의 특이사항/
-      // 시스템장애 업무만 통계·엑셀 내보내기에 포함해요(달력 상세와 동일한 규칙).
-      if(!admin && e.type === 'task' && !(!currentEmployee || e.employeeId === currentEmployee.id || e.hasSpecialNote || e.hasSystemFailure)) return false;
+      // 시스템장애/장애조치 업무만 통계·엑셀 내보내기에 포함해요(달력 상세와 동일한 규칙).
+      if(!admin && e.type === 'task' && !(!currentEmployee || e.employeeId === currentEmployee.id || e.hasSpecialNote || e.hasSystemFailure || e.taskCategory === 'incidentAction')) return false;
       if(statsTypeMode !== 'all' && e.type !== statsTypeMode) return false;
       if(statsTypeMode === 'expense' && statsExpenseTypeFilter && e.expenseType !== statsExpenseTypeFilter) return false;
       if(statsTypeMode === 'welfare' && statsWelfareTypeFilter && e.welfareType !== statsWelfareTypeFilter) return false;
@@ -11175,7 +11573,7 @@
           var ownerEmpStats = employees.find(function(x){ return x.id === e.employeeId; });
           if(ownerEmpStats) html += '<span style="font-size:12px;color:var(--ink-soft);margin-left:6px;">'+escapeHtml(ownerEmpStats.name)+'</span>';
         }
-        if(e.type !== 'task' && e.type !== 'attendance'){
+        if(e.type !== 'task' && e.type !== 'attendance' && e.type !== 'incident'){
           html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
         }
         html += '</div>';
@@ -11333,6 +11731,11 @@
     document.getElementById('overtimeCloseBtn').addEventListener('click', function(){ closeSheet('overtimeSheet'); });
     document.getElementById('welfareCloseBtn').addEventListener('click', function(){ closeSheet('welfareSheet'); });
     document.getElementById('taskCloseBtn').addEventListener('click', function(){ closeSheet('taskSheet'); });
+    document.getElementById('taskChooserCloseBtn').addEventListener('click', function(){ closeSheet('taskChooserSheet'); });
+    document.getElementById('taskChooserCancelBtn').addEventListener('click', function(){ closeSheet('taskChooserSheet'); });
+    document.getElementById('taskChooserLogBtn').addEventListener('click', function(){ closeSheet('taskChooserSheet'); openTaskForm(null); });
+    document.getElementById('taskChooserIncidentBtn').addEventListener('click', function(){ closeSheet('taskChooserSheet'); openIncidentForm(null); });
+    document.getElementById('incidentCloseBtn').addEventListener('click', function(){ closeSheet('incidentSheet'); });
     document.getElementById('datePickerCloseBtn').addEventListener('click', function(){ closeSheet('datePickerSheet'); });
     document.getElementById('settingsCloseBtn').addEventListener('click', function(){ closeSheet('settingsSheet'); });
     document.getElementById('expenseSettingsRowBtn').addEventListener('click', function(){
