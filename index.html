@@ -2192,7 +2192,7 @@
     return h.authorId === currentEmployee.id;
   }
 
-  function unlockApp(){
+  async function unlockApp(){
     document.getElementById('lockScreen').style.display = 'none';
     document.getElementById('mainApp').style.display = 'block';
     if(lockResolve){
@@ -2202,6 +2202,10 @@
     }else{
       // 로그아웃 후 재로그인: init()의 후속 로직이 다시 실행되지 않으므로
       // 여기서 직접 권한 UI와 화면을 새로고침해줘야 함
+      // 채팅 메시지/읽음정보도 로그아웃 동안 갱신됐을 수 있고, 로그인한
+      // 사람(직원)이 바뀌었을 수 있으니 새로 불러온 뒤에 배지를 계산해요.
+      chatMessages = await loadChatMessages();
+      chatReads = await loadChatReads();
       applyRoleUI();
       renderCalendar();
       renderDayDetail();
@@ -2209,6 +2213,9 @@
       // 방금 로그인한 사람(직원이 바뀌었을 수 있음)의 테마/폰트/글자크기로
       // 다시 적용해요.
       applyDisplayPrefsForCurrentUser();
+      // 채팅 배지는 채팅화면을 열지 않아도 실시간으로 갱신돼야 하므로, 로그인
+      // 상태인 동안 계속 폴링해요(로그아웃 시 logout()에서 멈춰요).
+      startChatPolling();
     }
   }
   function showSetupView(){
@@ -10689,7 +10696,7 @@
   function openChatGroupRoom(){
     openChatRoom(CHAT_GROUP_ROOM_ID, 'group', null, '단체채팅방');
   }
-  function openChatRoom(roomId, roomType, otherId, otherName){
+  async function openChatRoom(roomId, roomType, otherId, otherName){
     chatActiveRoomId = roomId;
     chatLeaveConfirming = false;
     document.getElementById('chatRoomTitle').textContent = (roomType === 'group' ? '👥 ' : '💬 ') + otherName;
@@ -10702,8 +10709,12 @@
     document.getElementById('chatComposeInput').value = '';
     document.getElementById('chatScreen').classList.remove('open');
     document.getElementById('chatRoomScreen').classList.add('open');
+    // 폴링 주기를 기다리지 않고 방을 여는 즉시 최신 메시지로 보여줘요.
+    chatMessages = await loadChatMessages();
+    chatReads = await loadChatReads();
     renderChatRoomMessages();
-    upsertChatRead(roomId);
+    await upsertChatRead(roomId);
+    updateChatBadges();
     startChatPolling();
   }
   function closeChatRoom(){
@@ -10717,10 +10728,44 @@
     var wrap = document.querySelector('#chatRoomScreen .side-scroll-wrap');
     if(wrap) wrap.scrollTop = wrap.scrollHeight;
   }
+  // 1:1방에서는 상대방의 마지막 읽음 시각과 비교해서 "읽음/안읽음"을,
+  // 단체채팅방에서는 (모든 직원+관리자 중 나를 뺀) 참가자 기준으로 아직 안 읽은
+  // 인원 수를 보여줘요. 내가 보낸 메시지에만 표시해요(받은 메시지는 내가 이미
+  // 읽었으니 표시할 필요가 없어요).
+  function chatReadMarkFor(roomId, readerId){
+    return chatReads.find(function(x){ return x.roomId === roomId && x.readerId === readerId; });
+  }
+  function chatReadIndicatorHTML(m, roomType, selfId, otherId, groupParticipantIds){
+    if(roomType === 'direct'){
+      var otherMark = chatReadMarkFor(m.roomId, otherId);
+      var isRead = !!(otherMark && otherMark.lastReadAt && m.createdAt && otherMark.lastReadAt >= m.createdAt);
+      return '<span style="font-size:10.5px;color:'+(isRead?'var(--ink-faint)':'var(--brick)')+';">'+(isRead?'읽음':'안읽음')+'</span>';
+    }
+    var unreadCount = groupParticipantIds.filter(function(pid){
+      var mark = chatReadMarkFor(CHAT_GROUP_ROOM_ID, pid);
+      return !(mark && mark.lastReadAt && m.createdAt && mark.lastReadAt >= m.createdAt);
+    }).length;
+    return '<span style="font-size:10.5px;color:var(--ink-faint);">'+(unreadCount>0?(unreadCount+'명 안읽음'):'모두 읽음')+'</span>';
+  }
   function renderChatRoomMessages(){
     var body = document.getElementById('chatMessagesBody');
     if(!body) return;
     var selfId = chatSelfId();
+    var roomType = chatActiveRoomId === CHAT_GROUP_ROOM_ID ? 'group' : 'direct';
+    var otherId = null;
+    if(roomType === 'direct'){
+      var roomParts = (chatActiveRoomId||'').split(':');
+      otherId = (roomParts[1] === selfId) ? roomParts[2] : roomParts[1];
+    }
+    // 단체채팅방의 "참가자"는 별도 멤버 목록이 없어서, 재직 중인 전체
+    // 직원+관리자(나를 제외)로 간주해요(단체채팅방 자체가 팀 전체에게
+    // 항상 열려있는 구조라서요).
+    var groupParticipantIds = [];
+    if(roomType === 'group'){
+      groupParticipantIds = employees.filter(function(e){ return !e.resignDate && !(e.leaveDate && !e.returnDate); }).map(function(e){ return e.id; });
+      groupParticipantIds.push('__admin__');
+      groupParticipantIds = groupParticipantIds.filter(function(id){ return id !== selfId; });
+    }
     var msgs = chatMessages.filter(function(m){ return m.roomId === chatActiveRoomId; })
       .slice().sort(function(a,b){ return (a.createdAt||'') < (b.createdAt||'') ? -1 : 1; });
     var html = '';
@@ -10740,6 +10785,9 @@
       if(m.content) html += escapeHtml(m.content);
       html += '</div>';
       html += '<div style="display:flex;gap:8px;align-items:center;margin-top:3px;">';
+      if(mine){
+        html += chatReadIndicatorHTML(m, roomType, selfId, otherId, groupParticipantIds);
+      }
       html += '<span style="font-size:10.5px;color:var(--ink-faint);">'+((m.createdAt||'').slice(11,16))+'</span>';
       if(canDeleteChatMessage(m)){
         html += '<button data-chat-del="'+m.id+'" type="button" style="font-size:10.5px;color:var(--brick);background:none;border:none;cursor:pointer;padding:0;">삭제</button>';
@@ -12574,9 +12622,13 @@
     document.getElementById('communityDetailModal').addEventListener('click', function(ev){
       if(ev.target.id === 'communityDetailModal') closeCommunityDetail();
     });
-    function openChatScreenFromMenu(){
+    async function openChatScreenFromMenu(){
       chatActiveTab = 'rooms';
       chatSelectedEmployeeId = null;
+      // 폴링 주기(3초)를 기다리지 않고, 여는 즉시 최신 메시지/읽음정보로
+      // 목록을 그려요(그래야 방금 도착한 메시지의 방 배지가 바로 보여요).
+      chatMessages = await loadChatMessages();
+      chatReads = await loadChatReads();
       renderChatListBody();
       document.getElementById('chatScreen').classList.add('open');
       startChatPolling();
@@ -12585,7 +12637,8 @@
     document.getElementById('chatOpenBtnEmp').addEventListener('click', openChatScreenFromMenu);
     document.getElementById('chatBackBtn').addEventListener('click', function(){
       document.getElementById('chatScreen').classList.remove('open');
-      stopChatPolling();
+      // 채팅화면을 나가도 로그인 상태인 동안은 배지 갱신을 위해 폴링을 계속
+      // 돌려요(로그아웃할 때만 멈춰요 — logout() 참고).
     });
     document.getElementById('chatTabRoomsBtn').addEventListener('click', function(){
       chatActiveTab = 'rooms';
@@ -12878,6 +12931,9 @@
       chatMessages = await loadChatMessages();
       chatReads = await loadChatReads();
       updateChatBadges();
+      // 채팅화면을 열어야만 폴링이 도는 게 아니라, 로그인해있는 동안은 달력
+      // 화면에 있어도 배지가 실시간으로 갱신되도록 계속 폴링해요.
+      startChatPolling();
       announcements = await loadAnnouncements();
       renderAnnouncementBanner();
       var backupReminderData = await loadBackupReminder();
