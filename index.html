@@ -10461,7 +10461,13 @@
   }
 
   function chatReadRowToObject(row){
-    return Object.assign({ id: row.id, employeeId: row.employee_id, updatedAt: row.updated_at }, row.data || {});
+    // lastReadAt은 각 기기(브라우저)의 로컬 시계가 아니라, DB 서버가 찍어주는
+    // updated_at을 그대로 써요(supabase_fix_chat_read_clock.sql의 트리거가
+    // 클라이언트가 보낸 값을 무시하고 서버 시각으로 덮어써요). 기기마다 시계가
+    // 조금씩 달라도(공길주 기기와 김민혁 기기의 시계가 어긋나 있어도) 모두가
+    // "같은 서버 시각" 기준으로 비교되므로, 방금 온 메시지가 예전 읽음 시각보다
+    // 먼저인 것처럼 착시가 생겨 잘못 "읽음"으로 표시되는 일이 없어져요.
+    return Object.assign({ id: row.id, employeeId: row.employee_id }, row.data || {}, { updatedAt: row.updated_at, lastReadAt: row.updated_at });
   }
   function chatReadObjectToRow(obj, userId){
     var rest = Object.assign({}, obj);
