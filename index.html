@@ -1044,6 +1044,10 @@
     </div>
 
     <div class="statsrow-top" id="employeeQuickMenu">
+      <button class="stat-block" id="communityOpenBtnEmp" type="button" style="flex:1;">
+        <p class="statnum" style="font-size:22px;">🖼️</p>
+        <p class="statlabel">커뮤니티</p>
+      </button>
       <button class="stat-block" id="suggestionOpenBtn" type="button" style="flex:1;">
         <p class="statnum" style="font-size:22px;">📮</p>
         <p class="statlabel">건의함</p>
@@ -1466,6 +1470,14 @@
   <div id="loginSecuritySettingsBody"></div>
 </div>
 
+<div class="bottom-sheet" id="permissionSettingsSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">🔑 권한적용</span>
+    <button class="sheet-close" id="permissionSettingsCloseBtn" type="button">✕</button>
+  </div>
+  <div id="permissionSettingsBody"></div>
+</div>
+
 <!-- 이번달 유형별 내역 -->
 <div class="bottom-sheet" id="monthTypeSheet">
   <div class="sheet-head">
@@ -1562,6 +1574,11 @@
   <p class="card-title">🔐 로그인 보안</p>
   <div class="ios-list" style="margin-bottom:8px;">
     <button class="cancelbtn" id="loginSecuritySettingsRowBtn" type="button" style="width:100%;text-align:left;">비밀번호 잠금 · 직원 로그인 사용 관리 ›</button>
+  </div>
+
+  <p class="card-title">🔑 권한적용</p>
+  <div class="ios-list" style="margin-bottom:8px;">
+    <button class="cancelbtn" id="permissionSettingsRowBtn" type="button" style="width:100%;text-align:left;">일반 직원 화면 기능 노출 관리 ›</button>
   </div>
 
   <p class="card-title">🔔 알림설정</p>
@@ -1662,6 +1679,17 @@
   }
   async function saveLoginOptions(){
     settingsCache.loginOptions = loginOptions;
+    await persistSettingsBlob();
+  }
+  // 권한적용: 일반 직원 화면에서 특정 기능(업무일지 시스템장애/건의함/커뮤니티)을
+  // 아예 보이지 않게 끌 수 있어요. 꺼도 관리자 화면에는 영향이 없어요.
+  var featurePermissions = { taskSystemFailure: true, suggestionBox: true, community: true };
+  async function loadFeaturePermissions(){
+    await ensureSettingsCacheLoaded();
+    return Object.assign({ taskSystemFailure: true, suggestionBox: true, community: true }, settingsCache.featurePermissions || {});
+  }
+  async function saveFeaturePermissions(){
+    settingsCache.featurePermissions = featurePermissions;
     await persistSettingsBlob();
   }
   var lastBackupDate = null;
@@ -2723,7 +2751,6 @@
       var taskParts = [];
       if(e.important) taskParts.push('⭐');
       if(e.hasSpecialNote) taskParts.push('🚨');
-      if(e.hasSystemFailure) taskParts.push('🖥️');
       taskParts.push((e.content||'').slice(0,60));
       var summary = escapeHtml(taskParts.join(' '));
       if(e.hasSpecialNote && e.specialNote){
@@ -7017,9 +7044,13 @@
         var qCount = (sv.questions||[]).length;
         html += '<div class="rule-card" style="margin-bottom:10px;">';
         html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">';
+        var isPastDeadline = sv.deadline && sv.deadline < todayStr();
         html += '<div data-survey-edit="'+sv.id+'" style="cursor:pointer;flex:1;">';
         html += '<p style="font-weight:700;font-size:14.5px;">'+escapeHtml(sv.title||'')+'</p>';
         html += '<p style="font-size:12px;color:var(--ink-faint);margin-top:3px;">문항 '+qCount+'개'+(sv.description?' · '+escapeHtml(sv.description):'')+'</p>';
+        if(sv.deadline){
+          html += '<p style="font-size:11.5px;margin-top:2px;color:'+(isPastDeadline?'var(--brick)':'var(--ink-faint)')+';">'+(isPastDeadline?'⏰ 마감됨 · ':'⏰ 마감 ')+escapeHtml(sv.deadline)+'</p>';
+        }
         html += '</div>';
         html += '<button class="cancelbtn" data-survey-stats="'+sv.id+'" type="button" style="flex-shrink:0;padding:6px 10px;font-size:11.5px;">📊 결과 '+respCount+'</button>';
         html += '</div>';
@@ -7051,6 +7082,8 @@
     var html = '';
     html += '<div class="field"><span class="field-label field-label-strong">제목</span><input type="text" id="sv_title" placeholder="예: 2026년 하반기 직원만족도 조사" value="'+escapeHtml(e.title||'')+'"></div>';
     html += '<div class="field"><span class="field-label">설명 (선택)</span><textarea id="sv_description" rows="2" placeholder="설문 목적/안내를 적어주세요">'+escapeHtml(e.description||'')+'</textarea></div>';
+    html += '<div class="field"><span class="field-label">마감일 (선택)</span><input type="date" id="sv_deadline" value="'+(e.deadline||'')+'"></div>';
+    html += '<p class="savehint" style="margin-top:-10px;">마감일을 지나면 응답 화면에 마감 안내가 표시되고 새 응답을 받지 않아요. 비워두면 마감 없이 계속 받아요.</p>';
     html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
     html += '<p class="field-label field-label-strong" style="margin-bottom:8px;">📝 문항</p>';
     html += '<div id="sv_questionsList"></div>';
@@ -7188,6 +7221,7 @@
       id: editingSurveyId || uid(),
       title: title,
       description: document.getElementById('sv_description').value.trim(),
+      deadline: document.getElementById('sv_deadline').value || null,
       questions: currentSurveyQuestions.slice(),
       createdAt: existingSurvey ? existingSurvey.createdAt || now : now,
       updatedAt: now
@@ -7208,7 +7242,7 @@
     var responses = surveyResponses.filter(function(r){ return r.surveyId === survey.id; });
     var html = '';
     html += '<p style="font-weight:700;font-size:16px;">'+escapeHtml(survey.title||'')+'</p>';
-    html += '<p class="savehint" style="margin-top:4px;">총 응답 '+responses.length+'건 · 실명 공개</p>';
+    html += '<p class="savehint" style="margin-top:4px;">총 응답 '+responses.length+'건 · 실명 공개'+(survey.deadline?' · 마감일 '+escapeHtml(survey.deadline):'')+'</p>';
     html += '<div style="height:1px;background:var(--line);margin:14px 0;"></div>';
 
     (survey.questions||[]).forEach(function(q, qIdx){
@@ -7326,9 +7360,13 @@
     if(!wrap || !a.surveyId) return;
     var sv = surveys.find(function(x){ return x.id === a.surveyId; });
     if(!sv) return;
+    var isPastDeadline = sv.deadline && sv.deadline < todayStr();
     var html = '<div style="height:1px;background:var(--line);margin-bottom:16px;"></div>';
     html += '<p style="font-weight:700;font-size:14.5px;">📊 '+escapeHtml(sv.title||'')+'</p>';
     if(sv.description) html += '<p style="font-size:12.5px;color:var(--ink-soft);margin-top:4px;">'+escapeHtml(sv.description)+'</p>';
+    if(sv.deadline){
+      html += '<p style="font-size:12px;margin-top:4px;color:'+(isPastDeadline?'var(--brick)':'var(--ink-faint)')+';">'+(isPastDeadline?'⏰ 마감된 설문이에요 (마감일 '+escapeHtml(sv.deadline)+')':'⏰ 마감일 '+escapeHtml(sv.deadline))+'</p>';
+    }
     if(isAdminUser()){
       html += '<button class="cancelbtn" id="an_surveyStatsBtn" type="button" style="width:100%;margin-top:10px;">📊 결과 보기</button>';
       wrap.innerHTML = html;
@@ -7343,10 +7381,17 @@
   function renderAnnouncementSurveyQuestions(sv, myResp, editMode){
     var qwrap = document.getElementById('an_surveyQuestions');
     if(!qwrap) return;
-    var readOnly = !!myResp && !editMode;
+    var isPastDeadline = sv.deadline && sv.deadline < todayStr();
+    if(isPastDeadline && !myResp){
+      // 마감일이 지났고 응답한 적도 없으면 새로 제출할 수 없어요.
+      qwrap.innerHTML = '<p class="empty-inline">마감된 설문이라 응답을 받지 않아요.</p>';
+      return;
+    }
+    var readOnly = !!myResp && (!editMode || isPastDeadline);
     var html = '';
     if(readOnly){
       html += '<p class="savehint" style="margin-bottom:8px;">✅ 이미 응답을 제출했어요 ('+((myResp.updatedAt||'').slice(0,10))+')</p>';
+      if(isPastDeadline) html += '<p class="savehint" style="margin-bottom:8px;color:var(--brick);">마감된 설문이라 더 이상 수정할 수 없어요.</p>';
     }
     (sv.questions||[]).forEach(function(q, qi){
       var existingVal = myResp && myResp.answers ? myResp.answers[q.id] : null;
@@ -7359,16 +7404,19 @@
       }
       html += '</div>';
     });
-    if(readOnly){
+    if(readOnly && !isPastDeadline){
       html += '<button class="cancelbtn" id="an_surveyEditBtn" type="button" style="width:100%;margin-top:8px;">응답 수정</button>';
-    }else{
+    }else if(!readOnly){
       html += '<button class="savebtn" id="an_surveySubmitBtn" type="button" style="width:100%;margin-top:8px;">응답 제출</button>';
     }
     qwrap.innerHTML = html;
     if(readOnly){
-      document.getElementById('an_surveyEditBtn').addEventListener('click', function(){
-        renderAnnouncementSurveyQuestions(sv, myResp, true);
-      });
+      var editBtn = document.getElementById('an_surveyEditBtn');
+      if(editBtn){
+        editBtn.addEventListener('click', function(){
+          renderAnnouncementSurveyQuestions(sv, myResp, true);
+        });
+      }
       return;
     }
     qwrap.querySelectorAll('.svr-answer[data-qtype="single"] .chip').forEach(function(c){
@@ -7676,9 +7724,9 @@
       html += '</div>';
     }else{
       pageItems.forEach(function(p){
-        html += '<div class="rule-card" data-community-open="'+p.id+'" style="margin-bottom:10px;cursor:pointer;">';
-        html += '<p style="font-weight:700;font-size:14px;">'+escapeHtml(p.title||'')+(p.images&&p.images.length?' · 🖼️'+p.images.length:'')+'</p>';
-        html += '<p style="font-size:12px;color:var(--ink-faint);margin-top:3px;">'+escapeHtml(p.authorName||'-')+' · '+((p.createdAt||'').slice(0,10))+'</p>';
+        html += '<div class="rule-card" data-community-open="'+p.id+'" style="margin-bottom:10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;">';
+        html += '<p style="font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">'+escapeHtml(p.title||'')+(p.images&&p.images.length?' · 🖼️'+p.images.length:'')+'</p>';
+        html += '<p style="font-size:12px;color:var(--ink-faint);text-align:right;white-space:nowrap;flex-shrink:0;">'+escapeHtml(p.authorName||'-')+'<br>'+((p.createdAt||'').slice(0,10))+'</p>';
         html += '</div>';
       });
     }
@@ -8882,6 +8930,9 @@
     };
     reader.readAsDataURL(file);
   }
+  // prefix별로 "사진 추가" 버튼 문구를 다르게 보여주고 싶을 때 여기에 등록해요
+  // (예: 시스템장애 사진은 "영수증 사진"이 아니라 "장애상황 사진"이라고 불러야 해요).
+  var RECEIPT_ADD_LABELS = { tk_fail: '📷 장애상황 사진 추가' };
   function receiptPreviewHTML(prefix){
     if(currentReceiptImage){
       return '<div style="position:relative;display:inline-block;">'+
@@ -8889,7 +8940,8 @@
         '<button type="button" id="'+prefix+'_receiptRemoveBtn" style="position:absolute;top:-6px;right:-6px;background:var(--brick);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;line-height:1;">✕</button>'+
         '</div>';
     }
-    return '<button type="button" class="cancelbtn" id="'+prefix+'_receiptAddBtn" style="width:100%;">📷 영수증 사진 추가</button>';
+    var addLabel = RECEIPT_ADD_LABELS[prefix] || '📷 영수증 사진 추가';
+    return '<button type="button" class="cancelbtn" id="'+prefix+'_receiptAddBtn" style="width:100%;">'+addLabel+'</button>';
   }
   function refreshReceiptPreview(prefix){
     var box = document.getElementById(prefix+'_receiptPreview');
@@ -9139,6 +9191,40 @@
         setTimeout(function(){ hint.style.color = ''; hint.textContent = original; }, 1500);
       });
     }
+  }
+
+  // 권한적용: 스위치를 끄면 일반 직원 화면에서 그 기능이 아예 보이지 않아요
+  // (관리자 화면에는 영향이 없어요).
+  var PERMISSION_TOGGLES = [
+    { key: 'taskSystemFailure', icon: '🖥️', label: '업무일지 시스템장애', hint: '업무일지 등록 화면의 "시스템장애" 체크·입력 항목을 일반 직원에게 보여줄지 정해요.' },
+    { key: 'suggestionBox', icon: '📮', label: '건의함', hint: '달력화면의 건의함 등록 버튼을 일반 직원에게 보여줄지 정해요.' },
+    { key: 'community', icon: '🖼️', label: '커뮤니티', hint: '달력화면의 커뮤니티 버튼을 일반 직원에게 보여줄지 정해요.' }
+  ];
+  function renderPermissionSettingsScreen(){
+    var body = document.getElementById('permissionSettingsBody');
+    var html = '';
+    html += '<p class="savehint" style="margin-bottom:14px;">꺼두면 일반 직원 화면에서 해당 기능이 아예 보이지 않아요. 관리자 화면에는 영향이 없어요.</p>';
+    PERMISSION_TOGGLES.forEach(function(t, idx){
+      if(idx > 0) html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
+      html += '<label class="checklist-item"><input type="checkbox" class="permtoggle" data-perm-key="'+t.key+'"'+(featurePermissions[t.key]!==false?' checked':'')+'><span>'+t.icon+' '+t.label+'</span></label>';
+      html += '<p class="savehint" id="permHint_'+t.key+'" style="margin-top:4px;">'+t.hint+'</p>';
+    });
+    body.innerHTML = html;
+
+    document.querySelectorAll('.permtoggle').forEach(function(cb){
+      cb.addEventListener('change', async function(){
+        var key = this.getAttribute('data-perm-key');
+        featurePermissions[key] = this.checked;
+        await saveFeaturePermissions();
+        applyRoleUI();
+        var hintEl = document.getElementById('permHint_'+key);
+        var toggleMeta = PERMISSION_TOGGLES.find(function(t){ return t.key === key; });
+        var original = toggleMeta ? toggleMeta.hint : '';
+        hintEl.style.color = 'var(--pine)';
+        hintEl.textContent = '저장됐어요';
+        setTimeout(function(){ hintEl.style.color = ''; hintEl.textContent = original; }, 1500);
+      });
+    });
   }
 
   function renderAttendTimeSettingsScreen(){
@@ -9406,26 +9492,31 @@
     html += '<label class="checklist-item"><input type="checkbox" id="tk_hasSpecialNote"'+(e.hasSpecialNote?' checked':'')+'><span>🚨 특이사항 (달력에 마크로 보여요)</span></label>';
     html += '<div class="field"><span class="field-label field-label-strong">특이사항</span><textarea id="tk_specialNote" placeholder="특이사항이 있다면 적어주세요" rows="3">'+escapeHtml(e.specialNote||'')+'</textarea></div>';
 
-    html += '<label class="checklist-item"><input type="checkbox" id="tk_hasSystemFailure"'+(e.hasSystemFailure?' checked':'')+'><span>🖥️ 시스템장애 (체크하면 상세 정보를 입력해요, 달력에 마크로 보여요)</span></label>';
-    html += '<div id="tk_failureFields" style="display:'+(e.hasSystemFailure?'block':'none')+';border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px;">';
-    html += '<div class="field"><span class="field-label field-label-strong">장애 유형</span><select id="tk_failureType">';
-    FAILURE_TYPES.forEach(function(t){
-      html += '<option value="'+t+'"'+(e.failureType===t?' selected':'')+'>'+t+'</option>';
-    });
-    html += '</select></div>';
-    html += '<div class="field"><span class="field-label field-label-strong">장애현상</span><textarea id="tk_failureSymptom" placeholder="장애 현상을 적어주세요" rows="2">'+escapeHtml(e.failureSymptom||'')+'</textarea></div>';
-    html += '<div class="field"><span class="field-label field-label-strong">장애조치내역</span><textarea id="tk_failureAction" placeholder="조치 내역을 적어주세요" rows="2">'+escapeHtml(e.failureAction||'')+'</textarea></div>';
-    html += '<div class="field"><span class="field-label field-label-strong">원인</span><textarea id="tk_failureCause" placeholder="장애 원인을 적어주세요" rows="2">'+escapeHtml(e.failureCause||'')+'</textarea></div>';
-    html += '<div class="field"><span class="field-label field-label-strong">장애등급</span><select id="tk_failureGrade">';
-    FAILURE_GRADES.forEach(function(g){
-      html += '<option value="'+g+'"'+(e.failureGrade===g?' selected':'')+'>'+g+'</option>';
-    });
-    html += '</select></div>';
-    html += '<div class="field"><span class="field-label">장애 관련 사진 (선택, 달력에 표시돼요)</span>';
-    html += '<input type="file" accept="image/*" id="tk_fail_receiptInput" style="display:none;">';
-    html += '<div id="tk_fail_receiptPreview">'+receiptPreviewHTML('tk_fail')+'</div>';
-    html += '</div>';
-    html += '</div>';
+    // 설정 > 권한적용에서 일반 직원에게 시스템장애 항목을 꺼뒀으면 관리자가 아닌
+    // 이상 이 섹션 자체를 렌더링하지 않아요(체크박스도 안 보여요).
+    var showFailureSection = isAdminUser() || featurePermissions.taskSystemFailure !== false;
+    if(showFailureSection){
+      html += '<label class="checklist-item"><input type="checkbox" id="tk_hasSystemFailure"'+(e.hasSystemFailure?' checked':'')+'><span>🖥️ 시스템장애 (체크하면 상세 정보를 입력해요, 달력에 마크로 보여요)</span></label>';
+      html += '<div id="tk_failureFields" style="display:'+(e.hasSystemFailure?'block':'none')+';border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:14px;">';
+      html += '<div class="field"><span class="field-label field-label-strong">장애 유형</span><select id="tk_failureType">';
+      FAILURE_TYPES.forEach(function(t){
+        html += '<option value="'+t+'"'+(e.failureType===t?' selected':'')+'>'+t+'</option>';
+      });
+      html += '</select></div>';
+      html += '<div class="field"><span class="field-label field-label-strong">장애현상</span><textarea id="tk_failureSymptom" placeholder="장애 현상을 적어주세요" rows="2">'+escapeHtml(e.failureSymptom||'')+'</textarea></div>';
+      html += '<div class="field"><span class="field-label field-label-strong">장애조치내역</span><textarea id="tk_failureAction" placeholder="조치 내역을 적어주세요" rows="2">'+escapeHtml(e.failureAction||'')+'</textarea></div>';
+      html += '<div class="field"><span class="field-label field-label-strong">원인</span><textarea id="tk_failureCause" placeholder="장애 원인을 적어주세요" rows="2">'+escapeHtml(e.failureCause||'')+'</textarea></div>';
+      html += '<div class="field"><span class="field-label field-label-strong">장애등급</span><select id="tk_failureGrade">';
+      FAILURE_GRADES.forEach(function(g){
+        html += '<option value="'+g+'"'+(e.failureGrade===g?' selected':'')+'>'+g+'</option>';
+      });
+      html += '</select></div>';
+      html += '<div class="field"><span class="field-label">장애 관련 사진 (선택, 달력에 표시돼요)</span>';
+      html += '<input type="file" accept="image/*" id="tk_fail_receiptInput" style="display:none;">';
+      html += '<div id="tk_fail_receiptPreview">'+receiptPreviewHTML('tk_fail')+'</div>';
+      html += '</div>';
+      html += '</div>';
+    }
 
     html += '<div class="row2">';
     html += '<button class="cancelbtn" id="tk_cancelBtn" type="button">취소</button>';
@@ -9439,10 +9530,12 @@
 
     document.getElementById('tk_cancelBtn').addEventListener('click', function(){ closeSheet('taskSheet'); });
     document.getElementById('tk_saveBtn').addEventListener('click', saveTaskForm);
-    document.getElementById('tk_hasSystemFailure').addEventListener('change', function(){
-      document.getElementById('tk_failureFields').style.display = this.checked ? 'block' : 'none';
-    });
-    wireReceiptField('tk_fail');
+    if(showFailureSection){
+      document.getElementById('tk_hasSystemFailure').addEventListener('change', function(){
+        document.getElementById('tk_failureFields').style.display = this.checked ? 'block' : 'none';
+      });
+      wireReceiptField('tk_fail');
+    }
     var tkDelBtn = document.getElementById('tk_deleteBtn');
     if(tkDelBtn){
       tkDelBtn.addEventListener('click', async function(){
@@ -9462,6 +9555,10 @@
     }
     var now = new Date().toISOString();
     var existingTaskEntry = editingTaskId ? entries.find(function(x){return x.id===editingTaskId;}) : null;
+    // 권한적용으로 시스템장애 섹션 자체가 안 보이는 화면(일반 직원, 기능 꺼짐)에서는
+    // 관련 입력창이 DOM에 없어요 — 이 경우 기존에 저장돼 있던 값을 그대로 보존해요
+    // (직원이 못 보는 항목을 저장할 때마다 지워버리면 안 되니까요).
+    var hasFailureSection = !!document.getElementById('tk_hasSystemFailure');
     var payload = {
       id: editingTaskId || uid(),
       type: 'task',
@@ -9470,13 +9567,13 @@
       important: document.getElementById('tk_important').checked,
       hasSpecialNote: document.getElementById('tk_hasSpecialNote').checked,
       specialNote: document.getElementById('tk_specialNote').value.trim(),
-      hasSystemFailure: document.getElementById('tk_hasSystemFailure').checked,
-      failureType: document.getElementById('tk_failureType').value,
-      failureSymptom: document.getElementById('tk_failureSymptom').value.trim(),
-      failureAction: document.getElementById('tk_failureAction').value.trim(),
-      failureCause: document.getElementById('tk_failureCause').value.trim(),
-      failureGrade: document.getElementById('tk_failureGrade').value,
-      failureImage: currentReceiptImage || null,
+      hasSystemFailure: hasFailureSection ? document.getElementById('tk_hasSystemFailure').checked : !!(existingTaskEntry && existingTaskEntry.hasSystemFailure),
+      failureType: hasFailureSection ? document.getElementById('tk_failureType').value : (existingTaskEntry ? existingTaskEntry.failureType : ''),
+      failureSymptom: hasFailureSection ? document.getElementById('tk_failureSymptom').value.trim() : (existingTaskEntry ? existingTaskEntry.failureSymptom : ''),
+      failureAction: hasFailureSection ? document.getElementById('tk_failureAction').value.trim() : (existingTaskEntry ? existingTaskEntry.failureAction : ''),
+      failureCause: hasFailureSection ? document.getElementById('tk_failureCause').value.trim() : (existingTaskEntry ? existingTaskEntry.failureCause : ''),
+      failureGrade: hasFailureSection ? document.getElementById('tk_failureGrade').value : (existingTaskEntry ? existingTaskEntry.failureGrade : ''),
+      failureImage: hasFailureSection ? (currentReceiptImage || null) : (existingTaskEntry ? existingTaskEntry.failureImage : null),
       employeeId: existingTaskEntry ? existingTaskEntry.employeeId : (currentEmployee ? currentEmployee.id : null),
       createdAt: existingTaskEntry ? existingTaskEntry.createdAt || now : now,
       updatedAt: now
@@ -11132,6 +11229,13 @@
     document.getElementById('loginSecuritySettingsCloseBtn').addEventListener('click', function(){
       openSheet('settingsSheet');
     });
+    document.getElementById('permissionSettingsRowBtn').addEventListener('click', function(){
+      renderPermissionSettingsScreen();
+      openSheet('permissionSettingsSheet');
+    });
+    document.getElementById('permissionSettingsCloseBtn').addEventListener('click', function(){
+      openSheet('settingsSheet');
+    });
 
     document.getElementById('monthLabelBtn').addEventListener('click', function(){ openDatePicker('calendar'); });
     document.getElementById('prevMonthBtn').addEventListener('click', function(){
@@ -11230,11 +11334,13 @@
       openSuggestionForm();
     });
     document.getElementById('suggestionFormCloseBtn').addEventListener('click', function(){ closeSheet('suggestionFormSheet'); });
-    document.getElementById('communityOpenBtn').addEventListener('click', function(){
+    function openCommunityScreenFromMenu(){
       communityListPage = 1;
       renderCommunityScreen();
       document.getElementById('communityScreen').classList.add('open');
-    });
+    }
+    document.getElementById('communityOpenBtn').addEventListener('click', openCommunityScreenFromMenu);
+    document.getElementById('communityOpenBtnEmp').addEventListener('click', openCommunityScreenFromMenu);
     document.getElementById('communityBackBtn').addEventListener('click', function(){
       document.getElementById('communityScreen').classList.remove('open');
     });
@@ -11411,10 +11517,22 @@
     var statsRow = document.querySelector('.statsrow-top');
     if(statsRow) statsRow.style.display = admin ? '' : 'none';
     // 일반 직원 로그인 시에는 출장/경비/야근/복지비 통계 대신, 달력 년/월 구분선
-    // 위쪽에 건의함 등록 버튼을 보여줘요(건의함은 관리자가 등록할 이유가 없어서
-    // 관리자 화면에는 표시하지 않아요 — 관리자는 면담화면 하단에서 조회만 해요).
+    // 위쪽에 커뮤니티·건의함 버튼을 나란히 보여줘요(건의함은 관리자가 등록할 이유가
+    // 없어서 관리자 화면에는 표시하지 않아요 — 관리자는 면담화면 하단에서 조회만
+    // 해요). 커뮤니티는 그 자리가 관리자 화면에서는 통계로 차 있으니, 관리자는
+    // 대신 달력화면 우측 상단(통계 버튼 옆) 버튼으로 접근해요.
     var empQuickMenu = document.getElementById('employeeQuickMenu');
-    if(empQuickMenu) empQuickMenu.style.display = admin ? 'none' : '';
+    var communityEmpBtn = document.getElementById('communityOpenBtnEmp');
+    var suggestionBtn = document.getElementById('suggestionOpenBtn');
+    // 설정 > 권한적용에서 관리자가 일반 직원 화면의 커뮤니티/건의함 버튼을 개별적으로
+    // 끌 수 있어요(꺼도 관리자 본인 화면에는 영향 없어요).
+    var communityAllowed = admin || featurePermissions.community !== false;
+    var suggestionAllowed = admin || featurePermissions.suggestionBox !== false;
+    if(communityEmpBtn) communityEmpBtn.style.display = communityAllowed ? '' : 'none';
+    if(suggestionBtn) suggestionBtn.style.display = suggestionAllowed ? '' : 'none';
+    if(empQuickMenu) empQuickMenu.style.display = (!admin && (communityAllowed || suggestionAllowed)) ? '' : 'none';
+    var communityHeaderBtn = document.getElementById('communityOpenBtn');
+    if(communityHeaderBtn) communityHeaderBtn.style.display = admin ? '' : 'none';
     var adminSettings = document.getElementById('settingsAdminSection');
     if(adminSettings) adminSettings.style.display = admin ? '' : 'none';
     var infoBox = document.getElementById('currentEmployeeInfo');
@@ -11457,6 +11575,7 @@
       budgetWarningPct = await loadBudgetWarningPct();
       securityPolicy = await loadSecurityPolicy();
       loginOptions = await loadLoginOptions();
+      featurePermissions = await loadFeaturePermissions();
       employees = await loadEmployees();
       applyRoleUI();
       var empOpts = await loadEmployeeOptions();
