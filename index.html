@@ -1681,12 +1681,14 @@
     settingsCache.loginOptions = loginOptions;
     await persistSettingsBlob();
   }
-  // 권한적용: 일반 직원 화면에서 특정 기능(업무일지 시스템장애/건의함/커뮤니티)을
-  // 아예 보이지 않게 끌 수 있어요. 꺼도 관리자 화면에는 영향이 없어요.
-  var featurePermissions = { taskSystemFailure: true, suggestionBox: true, community: true };
+  // 권한적용: 일반 직원 화면에서 특정 기능(업무일지 시스템장애/건의함/커뮤니티/
+  // MY정보의 상벌등록·자격현황·교육현황)을 아예 보이지 않게 끌 수 있어요.
+  // 꺼도 관리자 화면에는 영향이 없어요.
+  var FEATURE_PERMISSION_DEFAULTS = { taskSystemFailure: true, suggestionBox: true, community: true, myAward: true, myCertification: true, myEducation: true };
+  var featurePermissions = Object.assign({}, FEATURE_PERMISSION_DEFAULTS);
   async function loadFeaturePermissions(){
     await ensureSettingsCacheLoaded();
-    return Object.assign({ taskSystemFailure: true, suggestionBox: true, community: true }, settingsCache.featurePermissions || {});
+    return Object.assign({}, FEATURE_PERMISSION_DEFAULTS, settingsCache.featurePermissions || {});
   }
   async function saveFeaturePermissions(){
     settingsCache.featurePermissions = featurePermissions;
@@ -1863,7 +1865,25 @@
   }
 
   // ---------- Theme ----------
+  // 테마/폰트/글자크기는 "직원별로 각자" 적용돼야 해요. 기존에는 이 값들을
+  // localStorage(기기 하나에 공용 값 하나)에만 저장해서, 같은 기기에서 A직원이
+  // 다크로 바꾸고 B직원이 라이트로 바꾸면 마지막으로 저장한 값이 기기 전체에
+  // 덮어써졌어요(그래서 A직원이 다시 로그인해도 B직원이 바꾼 라이트가 보임).
+  // 직원으로 로그인한 경우엔 이제 이 값들을 해당 직원의 employees 행(data)에
+  // 저장해서 누가 로그인하든 항상 "그 사람의" 값을 서버에서 불러와요(기기가
+  // 달라도 동일). 실제 관리자 계정(이메일/비밀번호 로그인, currentEmployee 없음)은
+  // 회사에 한 명뿐이라 기존처럼 기기 로컬 저장을 그대로 써요.
+  async function saveMyDisplayPref(key, value){
+    if(!currentEmployee) return;
+    var idx = employees.findIndex(function(x){ return x.id === currentEmployee.id; });
+    var updated = Object.assign({}, (idx >= 0 ? employees[idx] : currentEmployee));
+    updated[key] = value;
+    if(idx >= 0) employees[idx] = updated;
+    currentEmployee = updated;
+    await saveMyEmployeeRow(updated);
+  }
   async function getThemePref(){
+    if(currentEmployee) return currentEmployee.themePref || 'auto';
     if(hasClaudeStorage()){
       try{ var res = await window.storage.get(THEME_KEY, false); return (res && res.value) ? res.value : 'auto'; }catch(e){ return 'auto'; }
     }
@@ -1872,6 +1892,10 @@
   async function setThemePref(pref){
     themePref = pref;
     applyThemePref();
+    if(currentEmployee){
+      await saveMyDisplayPref('themePref', pref);
+      return;
+    }
     if(hasClaudeStorage()){
       try{ await window.storage.set(THEME_KEY, pref, false); }catch(e){}
       return;
@@ -1901,6 +1925,7 @@
   var SIZE_CLASSES = ['text-scale-90','text-scale-115','text-scale-130'];
 
   async function getFontPref(){
+    if(currentEmployee) return currentEmployee.fontPref || 'default';
     if(hasClaudeStorage()){
       try{ var res = await window.storage.get(FONT_KEY, false); return (res && res.value) ? res.value : 'default'; }catch(e){ return 'default'; }
     }
@@ -1909,6 +1934,10 @@
   async function setFontPref(pref){
     fontPref = pref;
     applyFontPref();
+    if(currentEmployee){
+      await saveMyDisplayPref('fontPref', pref);
+      return;
+    }
     if(hasClaudeStorage()){
       try{ await window.storage.set(FONT_KEY, pref, false); }catch(e){}
       return;
@@ -1925,6 +1954,7 @@
     });
   }
   async function getSizePref(){
+    if(currentEmployee) return currentEmployee.sizePref || '100';
     if(hasClaudeStorage()){
       try{ var res = await window.storage.get(SIZE_KEY, false); return (res && res.value) ? res.value : '100'; }catch(e){ return '100'; }
     }
@@ -1933,6 +1963,10 @@
   async function setSizePref(pref){
     sizePref = pref;
     applySizePref();
+    if(currentEmployee){
+      await saveMyDisplayPref('sizePref', pref);
+      return;
+    }
     if(hasClaudeStorage()){
       try{ await window.storage.set(SIZE_KEY, pref, false); }catch(e){}
       return;
@@ -1952,6 +1986,18 @@
       var scale = parseFloat(sizePref) || 100;
       preview.style.fontSize = (15 * scale / 100).toFixed(1) + 'px';
     }
+  }
+  // 로그인 직후(최초 부팅/재로그인 모두) currentEmployee가 확정된 뒤 다시 불러서
+  // "그 사람의" 테마/폰트/글자크기로 다시 적용해요. init()은 로그인 화면이 뜨기
+  // 전에도 한 번(currentEmployee 없음 = 기기 로컬 기본값) 호출해서 로그인
+  // 화면에서부터 뭔가 자연스러운 값이 보이게 해요.
+  async function applyDisplayPrefsForCurrentUser(){
+    themePref = await getThemePref();
+    applyThemePref();
+    fontPref = await getFontPref();
+    applyFontPref();
+    sizePref = await getSizePref();
+    applySizePref();
   }
   // ---------- Lock / login ----------
   var SUPABASE_URL = 'https://vrvcbyovybovokfynpdl.supabase.co';
@@ -2002,6 +2048,9 @@
       renderCalendar();
       renderDayDetail();
       renderAnnouncementBanner();
+      // 방금 로그인한 사람(직원이 바뀌었을 수 있음)의 테마/폰트/글자크기로
+      // 다시 적용해요.
+      applyDisplayPrefsForCurrentUser();
     }
   }
   function showSetupView(){
@@ -2282,6 +2331,27 @@
   function entriesForDate(dateStr){
     return entries.filter(function(e){ return e.date === dateStr; });
   }
+  // 관리자는 모든 기록을 볼 수 있어요. 일반 직원은 본인이 등록한 업무/근무기록만
+  // 온전히 볼 수 있고, 다른 직원의 업무 중에서는 특이사항 또는 시스템장애로
+  // 등록된 것만(제한된 내용으로) 확인할 수 있어요. 출장/경비/야근/복지비는
+  // 기존과 동일하게 일반 직원 화면에는 아예 노출되지 않아요.
+  function visibleDayEntries(dateStr){
+    var all = entriesForDate(dateStr);
+    if(isAdminUser()) return all;
+    return all.filter(function(e){
+      if(e.type === 'attendance') return true;
+      if(e.type !== 'task') return false;
+      if(!currentEmployee || e.employeeId === currentEmployee.id) return true;
+      return !!(e.hasSpecialNote || e.hasSystemFailure);
+    });
+  }
+  // 다른 직원이 등록한 업무라서 제한된(특이사항/시스템장애만) 내용으로 보여줘야 하는지
+  function isOtherEmployeeTask(e){
+    if(isAdminUser()) return false;
+    if(e.type !== 'task') return false;
+    if(!currentEmployee) return false;
+    return e.employeeId !== currentEmployee.id;
+  }
   function currentDisplayedMonthRange(){
     var now = new Date();
     var displayDate = new Date(now.getFullYear(), now.getMonth() + calendarOffset, 1);
@@ -2426,7 +2496,7 @@
       if(holidayName) classes.push('holiday');
       if(dateStr === todayString) classes.push('today');
       var dayEntriesAll = entriesForDate(dateStr);
-      var dayEntries = isAdminUser() ? dayEntriesAll : dayEntriesAll.filter(function(e){ return e.type === 'task' || e.type === 'attendance'; });
+      var dayEntries = visibleDayEntries(dateStr);
       if(dayEntries.length > 0) classes.push('has-entries');
       if(dateStr === selectedDate) classes.push('selected');
       cell.className = classes.join(' ');
@@ -2447,7 +2517,12 @@
         cell.classList.add('unsettled');
       }
       var hasImportantMark = dayEntries.some(function(e){
-        return (e.type === 'attendance' || e.type === 'task') && e.important;
+        if(e.type !== 'attendance' && e.type !== 'task') return false;
+        if(!e.important) return false;
+        // ⭐ 중요 표시는 "오늘 한 일" 본문에 딸린 정보라 제한된 보기(다른 직원의
+        // 특이사항/시스템장애 업무)에는 포함하지 않아요.
+        if(isOtherEmployeeTask(e)) return false;
+        return true;
       });
       if(hasImportantMark){
         cell.classList.add('important-marked');
@@ -2578,7 +2653,7 @@
     html += '</div>';
 
     var DAY_DETAIL_TYPE_ORDER = { task:0, attendance:1, trip:2, expense:3, overtime:4, welfare:5 };
-    var dayEntriesSource = isAdminUser() ? entriesForDate(selectedDate) : entriesForDate(selectedDate).filter(function(e){ return e.type === 'task' || e.type === 'attendance'; });
+    var dayEntriesSource = visibleDayEntries(selectedDate);
     var dayEntries = dayEntriesSource.slice().sort(function(a,b){
       var orderA = DAY_DETAIL_TYPE_ORDER[a.type] != null ? DAY_DETAIL_TYPE_ORDER[a.type] : 99;
       var orderB = DAY_DETAIL_TYPE_ORDER[b.type] != null ? DAY_DETAIL_TYPE_ORDER[b.type] : 99;
@@ -2599,9 +2674,14 @@
           }
           lastRenderedType = e.type;
         }
+        var limitedView = isOtherEmployeeTask(e);
         html += '<div class="record-item">';
         html += '<div class="record-top">';
         html += '<span class="record-badge '+e.type+'">'+meta.icon+' '+meta.label+'</span>';
+        if(limitedView){
+          var ownerEmp = employees.find(function(x){ return x.id === e.employeeId; });
+          if(ownerEmp) html += '<span style="font-size:12px;color:var(--ink-soft);margin-left:6px;">'+escapeHtml(ownerEmp.name)+'</span>';
+        }
         if(e.type === 'task' && e.hasSystemFailure){
           html += '<span class="record-badge task" style="background:var(--brick);color:#fff;">';
           if(e.failureImage){
@@ -2615,8 +2695,8 @@
           html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
         }
         html += '</div>';
-        html += '<p class="record-sub">'+recordSummary(e)+'</p>';
-        if(e.receiptImage){
+        html += '<p class="record-sub">'+recordSummary(e, limitedView)+'</p>';
+        if(!limitedView && e.receiptImage){
           html += '<img src="'+e.receiptImage+'" class="receipt-thumb-small" data-receipt-view="'+e.id+'" style="max-width:60px;max-height:60px;border-radius:6px;border:1px solid var(--line);margin-top:6px;cursor:pointer;display:block;">';
         }
         if(e.type === 'task' && e.hasSystemFailure && e.failureImage){
@@ -2710,7 +2790,7 @@
     if(e.type === 'welfare') return e.amount || 0;
     return 0;
   }
-  function recordSummary(e){
+  function recordSummary(e, limitedView){
     if(e.type === 'trip'){
       var parts = [];
       if(e.region) parts.push(e.region);
@@ -2746,6 +2826,25 @@
         if(e.settlementStatus) p4.push(SETTLEMENT_LABEL[e.settlementStatus]);
       }
       return escapeHtml(p4.join(' · ') || '복지비 기록');
+    }
+    if(e.type === 'task' && limitedView){
+      // 다른 직원의 업무는 특이사항/시스템장애로 등록된 내용만 보여줘요.
+      // "오늘 한 일" 본문과 ⭐ 중요 표시는 본인 업무가 아니면 노출하지 않아요.
+      var limitedParts = [];
+      if(e.hasSpecialNote && e.specialNote){
+        limitedParts.push('<span style="color:var(--brick);">특이사항: '+escapeHtml(e.specialNote.slice(0,60))+'</span>');
+      }
+      if(e.hasSystemFailure){
+        var failMetaL = [];
+        if(e.failureType) failMetaL.push(e.failureType);
+        if(e.failureGrade) failMetaL.push(e.failureGrade);
+        var sysLine = '<span style="color:var(--brick);font-weight:600;">🖥️ 시스템장애'+(failMetaL.length?' · '+escapeHtml(failMetaL.join(' · ')):'')+'</span>';
+        if(e.failureSymptom) sysLine += '<br><span style="color:var(--ink-soft);">장애현상: '+escapeHtml(e.failureSymptom.slice(0,80))+'</span>';
+        if(e.failureAction) sysLine += '<br><span style="color:var(--ink-soft);">조치내역: '+escapeHtml(e.failureAction.slice(0,80))+'</span>';
+        if(e.failureCause) sysLine += '<br><span style="color:var(--ink-soft);">원인: '+escapeHtml(e.failureCause.slice(0,80))+'</span>';
+        limitedParts.push(sysLine);
+      }
+      return limitedParts.join('<br>');
     }
     if(e.type === 'task'){
       var taskParts = [];
@@ -5490,37 +5589,49 @@
     html += '<div class="field"><span class="field-label">근무지</span>'+optSelect('my_workLocation', employeeWorkLocations, existing.workLocation)+'</div>';
     html += '<div class="field"><span class="field-label">연차개수 (당해년)</span><input type="number" id="my_annualLeaveDays" placeholder="예: 15" value="'+(existing.annualLeaveDays!=null?existing.annualLeaveDays:'')+'"></div>';
 
-    html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
-    html += '<p class="field-label field-label-strong" style="margin:0;">🏅 상벌 등록</p>';
-    html += '<button class="cancelbtn" id="my_awardToggleBtn" type="button" style="font-size:11.5px;padding:5px 10px;">펼치기 ▾</button>';
-    html += '</div>';
-    html += '<div id="my_awardSection" style="display:none;">';
-    html += '<div id="my_awardsList"></div>';
-    html += '<button class="cancelbtn" id="my_awardAddBtn" type="button" style="width:100%;margin-top:6px;">+ 상벌 추가</button>';
-    html += '</div>';
+    // 설정 > 권한적용에서 일반 직원에게 이 항목들을 꺼뒀으면 관리자가 아닌 이상
+    // 해당 섹션 자체를 렌더링하지 않아요(값은 그대로 보존되고 화면에만 안 보여요).
+    var showAward = isAdminUser() || featurePermissions.myAward !== false;
+    var showCert = isAdminUser() || featurePermissions.myCertification !== false;
+    var showEdu = isAdminUser() || featurePermissions.myEducation !== false;
 
-    html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
-    html += '<p class="field-label field-label-strong" style="margin:0;">📜 자격현황</p>';
-    html += '<button class="cancelbtn" id="my_certToggleBtn" type="button" style="font-size:11.5px;padding:5px 10px;">펼치기 ▾</button>';
-    html += '</div>';
-    html += '<div id="my_certSection" style="display:none;">';
-    html += '<div id="my_certList"></div>';
-    html += '<div id="my_certPager" class="pager" style="margin-top:8px;"></div>';
-    html += '<button class="cancelbtn" id="my_certAddBtn" type="button" style="width:100%;margin-top:6px;">+ 자격증 추가</button>';
-    html += '</div>';
+    if(showAward){
+      html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+      html += '<p class="field-label field-label-strong" style="margin:0;">🏅 상벌 등록</p>';
+      html += '<button class="cancelbtn" id="my_awardToggleBtn" type="button" style="font-size:11.5px;padding:5px 10px;">펼치기 ▾</button>';
+      html += '</div>';
+      html += '<div id="my_awardSection" style="display:none;">';
+      html += '<div id="my_awardsList"></div>';
+      html += '<button class="cancelbtn" id="my_awardAddBtn" type="button" style="width:100%;margin-top:6px;">+ 상벌 추가</button>';
+      html += '</div>';
+    }
 
-    html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
-    html += '<p class="field-label field-label-strong" style="margin:0;">📚 교육현황</p>';
-    html += '<button class="cancelbtn" id="my_eduToggleBtn" type="button" style="font-size:11.5px;padding:5px 10px;">펼치기 ▾</button>';
-    html += '</div>';
-    html += '<div id="my_eduSection" style="display:none;">';
-    html += '<div id="my_eduList"></div>';
-    html += '<div id="my_eduPager" class="pager" style="margin-top:8px;"></div>';
-    html += '<button class="cancelbtn" id="my_eduAddBtn" type="button" style="width:100%;margin-top:6px;">+ 교육 추가</button>';
-    html += '</div>';
+    if(showCert){
+      html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+      html += '<p class="field-label field-label-strong" style="margin:0;">📜 자격현황</p>';
+      html += '<button class="cancelbtn" id="my_certToggleBtn" type="button" style="font-size:11.5px;padding:5px 10px;">펼치기 ▾</button>';
+      html += '</div>';
+      html += '<div id="my_certSection" style="display:none;">';
+      html += '<div id="my_certList"></div>';
+      html += '<div id="my_certPager" class="pager" style="margin-top:8px;"></div>';
+      html += '<button class="cancelbtn" id="my_certAddBtn" type="button" style="width:100%;margin-top:6px;">+ 자격증 추가</button>';
+      html += '</div>';
+    }
+
+    if(showEdu){
+      html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
+      html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+      html += '<p class="field-label field-label-strong" style="margin:0;">📚 교육현황</p>';
+      html += '<button class="cancelbtn" id="my_eduToggleBtn" type="button" style="font-size:11.5px;padding:5px 10px;">펼치기 ▾</button>';
+      html += '</div>';
+      html += '<div id="my_eduSection" style="display:none;">';
+      html += '<div id="my_eduList"></div>';
+      html += '<div id="my_eduPager" class="pager" style="margin-top:8px;"></div>';
+      html += '<button class="cancelbtn" id="my_eduAddBtn" type="button" style="width:100%;margin-top:6px;">+ 교육 추가</button>';
+      html += '</div>';
+    }
 
     html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
     html += '<p class="field-label field-label-strong">🔒 비밀번호 변경</p>';
@@ -5550,12 +5661,18 @@
     }
     wireSingleSelectChips('my_genderChips');
 
-    renderEmployeeAwardsList();
-    renderEmployeeCertList();
-    renderEmployeeEduList();
-    document.getElementById('my_awardAddBtn').addEventListener('click', function(){ openAwardInlineForm(); });
-    document.getElementById('my_certAddBtn').addEventListener('click', function(){ openCertInlineForm(); });
-    document.getElementById('my_eduAddBtn').addEventListener('click', function(){ openEduInlineForm(); });
+    if(showAward){
+      renderEmployeeAwardsList();
+      document.getElementById('my_awardAddBtn').addEventListener('click', function(){ openAwardInlineForm(); });
+    }
+    if(showCert){
+      renderEmployeeCertList();
+      document.getElementById('my_certAddBtn').addEventListener('click', function(){ openCertInlineForm(); });
+    }
+    if(showEdu){
+      renderEmployeeEduList();
+      document.getElementById('my_eduAddBtn').addEventListener('click', function(){ openEduInlineForm(); });
+    }
     function wireCollapseToggle(btnId, sectionId){
       document.getElementById(btnId).addEventListener('click', function(){
         var sec = document.getElementById(sectionId);
@@ -5564,9 +5681,9 @@
         this.textContent = isOpen ? '펼치기 ▾' : '접기 ▴';
       });
     }
-    wireCollapseToggle('my_awardToggleBtn', 'my_awardSection');
-    wireCollapseToggle('my_certToggleBtn', 'my_certSection');
-    wireCollapseToggle('my_eduToggleBtn', 'my_eduSection');
+    if(showAward) wireCollapseToggle('my_awardToggleBtn', 'my_awardSection');
+    if(showCert) wireCollapseToggle('my_certToggleBtn', 'my_certSection');
+    if(showEdu) wireCollapseToggle('my_eduToggleBtn', 'my_eduSection');
 
     document.getElementById('my_changePwBtn').addEventListener('click', function(){
       var form = document.getElementById('my_changePwForm');
@@ -7502,7 +7619,15 @@
       var uid = await getCurrentUserId();
       if(!uid){ reportSyncError('건의함 등록', '로그인 세션을 찾을 수 없어요'); return false; }
       var row = suggestionObjectToRow(obj, uid);
-      var res = await supabaseClient.from('suggestions').upsert([row], { onConflict: 'id' });
+      // upsert(ON CONFLICT DO UPDATE)가 아니라 순수 insert를 써요. 건의함은 수정
+      // 기능이 없어서(등록만 가능) 매번 새 id로만 들어가므로 upsert가 필요 없고,
+      // 오히려 upsert를 쓰면 문제가 생겨요 — "조회는 관리자만" 정책 때문에 일반
+      // 직원 입장에서는 이 테이블에 자기 글이라도 조회 권한(SELECT 정책)이 아예
+      // 없는데, PostgreSQL은 ON CONFLICT DO UPDATE 구문을 실제 충돌 여부와
+      // 무관하게 "혹시 업데이트가 될 수도 있는 경우"로 취급해서 SELECT 정책까지
+      // 함께 확인하기 때문에, 일반 직원이 등록할 때마다 RLS 위반 오류
+      // ("new row violates row-level security policy")가 발생했어요.
+      var res = await supabaseClient.from('suggestions').insert([row]);
       if(res.error){ reportSyncError('건의함 등록', res.error); return false; }
       return true;
     }catch(e){ reportSyncError('건의함 등록', e); return false; }
@@ -9198,14 +9323,22 @@
   var PERMISSION_TOGGLES = [
     { key: 'taskSystemFailure', icon: '🖥️', label: '업무일지 시스템장애', hint: '업무일지 등록 화면의 "시스템장애" 체크·입력 항목을 일반 직원에게 보여줄지 정해요.' },
     { key: 'suggestionBox', icon: '📮', label: '건의함', hint: '달력화면의 건의함 등록 버튼을 일반 직원에게 보여줄지 정해요.' },
-    { key: 'community', icon: '🖼️', label: '커뮤니티', hint: '달력화면의 커뮤니티 버튼을 일반 직원에게 보여줄지 정해요.' }
+    { key: 'community', icon: '🖼️', label: '커뮤니티', hint: '달력화면의 커뮤니티 버튼을 일반 직원에게 보여줄지 정해요.' },
+    { key: 'myAward', icon: '🏅', label: 'MY정보 상벌등록', hint: 'MY정보 화면의 "상벌 등록" 항목을 일반 직원에게 보여줄지 정해요.', group: 'MY정보' },
+    { key: 'myCertification', icon: '📜', label: 'MY정보 자격현황', hint: 'MY정보 화면의 "자격현황" 항목을 일반 직원에게 보여줄지 정해요.', group: 'MY정보' },
+    { key: 'myEducation', icon: '📚', label: 'MY정보 교육현황', hint: 'MY정보 화면의 "교육현황" 항목을 일반 직원에게 보여줄지 정해요.', group: 'MY정보' }
   ];
   function renderPermissionSettingsScreen(){
     var body = document.getElementById('permissionSettingsBody');
     var html = '';
     html += '<p class="savehint" style="margin-bottom:14px;">꺼두면 일반 직원 화면에서 해당 기능이 아예 보이지 않아요. 관리자 화면에는 영향이 없어요.</p>';
+    var lastGroup = null;
     PERMISSION_TOGGLES.forEach(function(t, idx){
       if(idx > 0) html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
+      if(t.group && t.group !== lastGroup){
+        html += '<p class="field-label field-label-strong" style="margin-bottom:8px;">'+t.group+'</p>';
+      }
+      lastGroup = t.group || null;
       html += '<label class="checklist-item"><input type="checkbox" class="permtoggle" data-perm-key="'+t.key+'"'+(featurePermissions[t.key]!==false?' checked':'')+'><span>'+t.icon+' '+t.label+'</span></label>';
       html += '<p class="savehint" id="permHint_'+t.key+'" style="margin-top:4px;">'+t.hint+'</p>';
     });
@@ -10318,7 +10451,7 @@
       return {
         '날짜': e.date,
         '유형': meta.label,
-        '내용': unescapeHtml(recordSummary(e)),
+        '내용': unescapeHtml(recordSummary(e, isOtherEmployeeTask(e))),
         '금액': e.type === 'task' ? '' : recordAmount(e),
         '정산상태': e.settlementStatus ? (SETTLEMENT_LABEL[e.settlementStatus]||'') : '',
         '입금일': e.depositDate || '',
@@ -10340,6 +10473,9 @@
       if(e.type === 'attendance' && statsTypeMode !== 'attendance') return false;
       // 일반 권한은 출장/경비/야근/복지비 기록을 통계에서 볼 수 없음
       if(!admin && (e.type === 'trip' || e.type === 'expense' || e.type === 'overtime' || e.type === 'welfare')) return false;
+      // 일반 권한은 업무(task) 중 본인이 등록한 것과, 다른 직원의 특이사항/
+      // 시스템장애 업무만 통계·엑셀 내보내기에 포함해요(달력 상세와 동일한 규칙).
+      if(!admin && e.type === 'task' && !(!currentEmployee || e.employeeId === currentEmployee.id || e.hasSpecialNote || e.hasSystemFailure)) return false;
       if(statsTypeMode !== 'all' && e.type !== statsTypeMode) return false;
       if(statsTypeMode === 'expense' && statsExpenseTypeFilter && e.expenseType !== statsExpenseTypeFilter) return false;
       if(statsTypeMode === 'welfare' && statsWelfareTypeFilter && e.welfareType !== statsWelfareTypeFilter) return false;
@@ -11031,14 +11167,19 @@
     }else{
       pageItems.forEach(function(e){
         var meta = TYPE_META[e.type];
+        var limitedViewStats = isOtherEmployeeTask(e);
         html += '<div class="record-item">';
         html += '<div class="record-top">';
         html += '<span class="record-badge '+e.type+'">'+meta.icon+' '+meta.label+'</span>';
+        if(limitedViewStats){
+          var ownerEmpStats = employees.find(function(x){ return x.id === e.employeeId; });
+          if(ownerEmpStats) html += '<span style="font-size:12px;color:var(--ink-soft);margin-left:6px;">'+escapeHtml(ownerEmpStats.name)+'</span>';
+        }
         if(e.type !== 'task' && e.type !== 'attendance'){
           html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
         }
         html += '</div>';
-        html += '<p class="record-sub">'+niceDate(e.date)+' · '+recordSummary(e)+'</p>';
+        html += '<p class="record-sub">'+niceDate(e.date)+' · '+recordSummary(e, limitedViewStats)+'</p>';
         if(e.type === 'trip'){
           html += '<div style="margin-top:8px;">';
           html += '<select class="stats_settlement_select" data-id="'+e.id+'" style="width:auto;font-size:16px;padding:6px 8px;'+(e.settlementStatus!=='done'?'border-color:var(--brick);color:var(--brick);':'')+'">';
@@ -11557,13 +11698,12 @@
   async function init(){
     try{
       initEvents();
-      themePref = await getThemePref();
-      applyThemePref();
+      // 로그인 전이라 currentEmployee를 아직 모르니 기기 로컬 기본값으로 한 번
+      // 적용(로그인 화면 플래시 방지)하고, 로그인이 끝나면(initLock 완료) 그
+      // 사람의 값으로 다시 적용해요.
+      await applyDisplayPrefsForCurrentUser();
       await initLock();
-      fontPref = await getFontPref();
-      applyFontPref();
-      sizePref = await getSizePref();
-      applySizePref();
+      await applyDisplayPrefsForCurrentUser();
       entries = await loadEntries();
       expenseCategories = await loadExpenseCategories();
       expenseTypes = await loadExpenseTypes();
