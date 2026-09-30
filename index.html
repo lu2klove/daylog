@@ -1056,7 +1056,10 @@
   <div class="side-header">
     <button class="side-back" id="statsBackBtn" type="button">‹ 뒤로</button>
     <span class="side-title">📊 통계</span>
-    <button class="side-back" id="communityOpenBtn" type="button" aria-label="커뮤니티">🖼️</button>
+    <div style="display:flex;gap:6px;">
+      <button class="side-back" id="suggestionOpenBtn" type="button" aria-label="건의함">📮</button>
+      <button class="side-back" id="communityOpenBtn" type="button" aria-label="커뮤니티">🖼️</button>
+    </div>
   </div>
   <div class="side-scroll-wrap">
     <div class="side-body" id="statsBody"></div>
@@ -1134,6 +1137,14 @@
     <button class="sheet-close" id="surveyStatsCloseBtn" type="button">✕</button>
   </div>
   <div id="surveyStatsBody"></div>
+</div>
+
+<div class="bottom-sheet" id="suggestionFormSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">📮 건의함</span>
+    <button class="sheet-close" id="suggestionFormCloseBtn" type="button">✕</button>
+  </div>
+  <div id="suggestionFormBody"></div>
 </div>
 
 <div class="side-screen" id="communityScreen">
@@ -6519,12 +6530,43 @@
       });
     }
 
+    // 건의함(익명 가능) — 등록된 건의사항을 면담화면 구성 하단에 표시해요.
+    // 관리자만 조회할 수 있어요(RLS) — 익명으로 등록된 건은 authorName/employeeId가
+    // 아예 저장되지 않아서 관리자도 누가 등록했는지 알 수 없어요.
+    html += '<div style="height:1px;background:var(--line);margin:22px 0 16px;"></div>';
+    html += '<p class="field-label field-label-strong" style="margin-bottom:8px;">💌 건의함 ('+suggestions.length+'건)</p>';
+    var sortedSuggestions = suggestions.slice().sort(function(a,b){ return (b.createdAt||'') < (a.createdAt||'') ? -1 : 1; });
+    if(sortedSuggestions.length === 0){
+      html += '<p class="empty-inline">등록된 건의사항이 없어요.</p>';
+    }else{
+      sortedSuggestions.forEach(function(s){
+        html += '<div class="rule-card" style="margin-bottom:8px;padding:10px 12px;">';
+        html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">';
+        html += '<div>';
+        html += '<span style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;background:var(--blue)22;color:var(--blue);">'+escapeHtml(s.type||'기타')+'</span>';
+        html += '<p style="font-size:13px;margin-top:6px;white-space:pre-wrap;">'+escapeHtml(s.content||'')+'</p>';
+        html += '<p style="font-size:11.5px;color:var(--ink-faint);margin-top:4px;">'+(s.isAnonymous?'🙈 익명':escapeHtml(s.authorName||'-'))+' · '+((s.createdAt||'').slice(0,10))+'</p>';
+        html += '</div>';
+        html += '<button class="danger" data-suggestion-del="'+s.id+'" type="button" style="padding:4px 10px;font-size:11.5px;flex-shrink:0;">삭제</button>';
+        html += '</div></div>';
+      });
+    }
+
     body.innerHTML = html;
     document.getElementById('addInterviewBtn').addEventListener('click', function(){ openInterviewForm(); });
     body.querySelectorAll('[data-interview-row]').forEach(function(row){
       row.addEventListener('click', function(){
         var iv = interviews.find(function(x){ return x.id === row.getAttribute('data-interview-row'); });
         if(iv) openInterviewForm(iv);
+      });
+    });
+    body.querySelectorAll('[data-suggestion-del]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        var delId = btn.getAttribute('data-suggestion-del');
+        var ok = await deleteSuggestion(delId);
+        if(!ok) return;
+        suggestions = suggestions.filter(function(x){ return x.id !== delId; });
+        renderInterviewScreen();
       });
     });
   }
@@ -7299,6 +7341,127 @@
       if(existingIdx >= 0) surveyResponses[existingIdx] = payload; else surveyResponses.push(payload);
       renderAnnouncementSurveyQuestions(sv, payload, false);
     });
+  }
+
+  // ---------- 건의함 (업무일지 달력 > 📊 통계 > 📮 건의함 팝업 등록, 인사관리 > 면담화면 하단에 표시) ----------
+  // "완전 익명" 방식이에요 — 익명 체크박스를 켜고 등록하면 employee_id/건의자 이름을
+  // 아예 저장하지 않아서, 관리자도 DB를 직접 봐도 누가 등록했는지 알 수 없어요.
+  // 조회는 관리자만 가능(RLS) — 일반 직원 화면에는 등록 팝업만 있고 목록은 없어요.
+  var SUGGESTION_TYPE_OPTIONS = ['업무','개인','회사','팀','기타'];
+  var suggestions = []; // [{id, employeeId, type, content, authorName, isAnonymous, createdAt, updatedAt}]
+
+  function suggestionRowToObject(row){
+    return Object.assign({
+      id: row.id,
+      employeeId: row.employee_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }, row.data || {});
+  }
+  function suggestionObjectToRow(obj, userId){
+    var rest = Object.assign({}, obj);
+    delete rest.id; delete rest.employeeId; delete rest.createdAt; delete rest.updatedAt;
+    return {
+      id: obj.id,
+      user_id: userId,
+      employee_id: obj.employeeId || null,
+      data: rest,
+      updated_at: obj.updatedAt || new Date().toISOString()
+    };
+  }
+  async function loadSuggestions(){
+    // 관리자가 아니면 RLS가 빈 배열을 돌려줘요(오류가 아니라 정상적인 접근제한이에요).
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid) return [];
+      var res = await supabaseClient.from('suggestions').select('*').eq('user_id', uid);
+      if(res.error){ reportSyncError('건의함 불러오기', res.error); return []; }
+      return res.data.map(suggestionRowToObject);
+    }catch(e){ reportSyncError('건의함 불러오기', e); return []; }
+  }
+  async function insertSuggestion(obj){
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid){ reportSyncError('건의함 등록', '로그인 세션을 찾을 수 없어요'); return false; }
+      var row = suggestionObjectToRow(obj, uid);
+      var res = await supabaseClient.from('suggestions').upsert([row], { onConflict: 'id' });
+      if(res.error){ reportSyncError('건의함 등록', res.error); return false; }
+      return true;
+    }catch(e){ reportSyncError('건의함 등록', e); return false; }
+  }
+  async function deleteSuggestion(id){
+    try{
+      var res = await supabaseClient.from('suggestions').delete().eq('id', id);
+      if(res.error){ reportSyncError('건의함 삭제', res.error); return false; }
+      return true;
+    }catch(e){ reportSyncError('건의함 삭제', e); return false; }
+  }
+
+  function openSuggestionForm(){
+    var body = document.getElementById('suggestionFormBody');
+    var html = '';
+    html += '<div class="field"><span class="field-label field-label-strong">유형</span><div class="chiprow" id="sg_typeChips">';
+    SUGGESTION_TYPE_OPTIONS.forEach(function(t, i){
+      html += '<button class="chip'+(i===0?' selected':'')+'" data-type="'+t+'" type="button">'+t+'</button>';
+    });
+    html += '</div></div>';
+    html += '<div class="field"><span class="field-label">건의 내용</span><textarea id="sg_content" rows="5" placeholder="건의하실 내용을 자유롭게 적어주세요"></textarea></div>';
+    html += '<label class="checklist-item"><input type="checkbox" id="sg_anonymous"><span>익명으로 등록 (체크하면 관리자도 누가 등록했는지 알 수 없어요)</span></label>';
+    html += '<p class="savehint" id="sg_authorHint" style="margin-top:4px;">건의자: '+escapeHtml(currentEmployee ? currentEmployee.name : '관리자')+'</p>';
+    html += '<p class="savehint">등록일은 오늘 날짜('+todayStr()+')로 자동 등록돼요.</p>';
+    html += '<button class="savebtn" id="sg_submitBtn" type="button" style="width:100%;margin-top:12px;">건의사항 등록</button>';
+    html += '<p class="toast" id="sg_toast"></p>';
+    body.innerHTML = html;
+
+    document.querySelectorAll('#sg_typeChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        document.querySelectorAll('#sg_typeChips .chip').forEach(function(x){ x.classList.remove('selected'); });
+        c.classList.add('selected');
+      });
+    });
+    document.getElementById('sg_anonymous').addEventListener('change', function(){
+      var hint = document.getElementById('sg_authorHint');
+      hint.textContent = '건의자: ' + (this.checked ? '익명' : (currentEmployee ? currentEmployee.name : '관리자'));
+    });
+    document.getElementById('sg_submitBtn').addEventListener('click', async function(){
+      var contentEl = document.getElementById('sg_content');
+      var content = contentEl.value.trim();
+      var toast = document.getElementById('sg_toast');
+      if(!content){
+        toast.style.color = 'var(--brick)';
+        toast.textContent = '건의 내용을 입력해주세요';
+        contentEl.focus();
+        return;
+      }
+      var typeChip = document.querySelector('#sg_typeChips .chip.selected');
+      var anonEl = document.getElementById('sg_anonymous');
+      var isAnon = anonEl.checked;
+      var now = new Date().toISOString();
+      var payload = {
+        id: uid(),
+        employeeId: isAnon ? null : (currentEmployee ? currentEmployee.id : null),
+        type: typeChip ? typeChip.getAttribute('data-type') : SUGGESTION_TYPE_OPTIONS[0],
+        content: content,
+        authorName: isAnon ? null : (currentEmployee ? currentEmployee.name : '관리자'),
+        isAnonymous: isAnon,
+        createdAt: now,
+        updatedAt: now
+      };
+      var btn = document.getElementById('sg_submitBtn');
+      btn.disabled = true;
+      var ok = await insertSuggestion(payload);
+      btn.disabled = false;
+      if(!ok) return;
+      // 로컬 캐시에도 추가해요(같은 브라우저 세션 안에서 로그아웃 후 다른 계정으로
+      // 재로그인해도 init()이 다시 실행되지 않아서, 커뮤니티 기능과 동일한 패턴으로
+      // 저장 성공 시 항상 로컬 배열에도 반영해요 — 관리자만 화면에 표시하므로
+      // 일반 직원 화면에는 어차피 노출되지 않아요).
+      suggestions.push(payload);
+      toast.style.color = 'var(--pine)';
+      toast.textContent = '등록됐어요. 소중한 의견 감사해요!';
+      setTimeout(function(){ closeSheet('suggestionFormSheet'); }, 900);
+    });
+    openSheet('suggestionFormSheet');
   }
 
   // ---------- 커뮤니티 (업무일지 달력 > 📊 통계 > 🖼️ 커뮤니티, 갤러리 게시판) ----------
@@ -10958,6 +11121,10 @@
     });
     document.getElementById('surveyFormCloseBtn').addEventListener('click', function(){ closeSheet('surveyFormSheet'); });
     document.getElementById('surveyStatsCloseBtn').addEventListener('click', function(){ closeSheet('surveyStatsSheet'); });
+    document.getElementById('suggestionOpenBtn').addEventListener('click', function(){
+      openSuggestionForm();
+    });
+    document.getElementById('suggestionFormCloseBtn').addEventListener('click', function(){ closeSheet('suggestionFormSheet'); });
     document.getElementById('communityOpenBtn').addEventListener('click', function(){
       communityListPage = 1;
       renderCommunityScreen();
@@ -11197,6 +11364,7 @@
       surveys = await loadSurveys();
       surveyResponses = await loadSurveyResponses();
       communityPosts = await loadCommunityPosts();
+      suggestions = await loadSuggestions();
       announcements = await loadAnnouncements();
       renderAnnouncementBanner();
       var backupReminderData = await loadBackupReminder();
