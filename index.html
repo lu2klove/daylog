@@ -952,6 +952,72 @@
   }
   .year-nav .navbtn{ position:static; }
   .year-label{ font-size:20px; font-weight:700; }
+
+  /* ── 채팅 ── */
+  #chatOpenBtnHeader, #chatOpenBtnEmp{ position:relative; }
+  .chat-unread-badge{
+    position:absolute;
+    top:-4px;
+    right:2px;
+    background:var(--brick);
+    color:#fff;
+    font-size:10px;
+    font-weight:700;
+    line-height:1;
+    padding:3px 5px;
+    border-radius:999px;
+    min-width:16px;
+    text-align:center;
+    box-sizing:border-box;
+  }
+  .chat-room-badge{
+    background:var(--brick);
+    color:#fff;
+    font-size:11px;
+    font-weight:700;
+    line-height:1;
+    padding:4px 7px;
+    border-radius:999px;
+    min-width:18px;
+    text-align:center;
+    flex-shrink:0;
+  }
+  .chat-compose{
+    position:fixed;
+    left:0;
+    right:0;
+    bottom:0;
+    background:var(--paper);
+    border-top:1px solid var(--line);
+    padding:10px 16px calc(10px + env(safe-area-inset-bottom));
+    max-width:480px;
+    margin:0 auto;
+    box-sizing:border-box;
+    z-index:3;
+  }
+  @media (min-width:768px){ .chat-compose{ max-width:720px; } }
+  .chat-compose textarea{
+    flex:1;
+    resize:none;
+    font-family:'IBM Plex Sans KR',sans-serif;
+    font-size:13.5px;
+    padding:9px 12px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--paper-raised);
+    color:var(--ink);
+    max-height:80px;
+  }
+  .chat-emoji-chip{ padding:6px 9px; font-size:16px; }
+  .chat-bubble-row{ display:flex; flex-direction:column; margin-bottom:12px; }
+  .chat-bubble{
+    max-width:78%;
+    border-radius:14px;
+    padding:9px 12px;
+    font-size:13.5px;
+    white-space:pre-wrap;
+    word-break:break-word;
+  }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -1009,6 +1075,7 @@
     <h1 id="appTitle" style="cursor:pointer;">💼 업무일지</h1>
     <div style="display:flex;gap:8px;">
       <button class="assetbtn" id="statsOpenBtn" type="button">📊 통계</button>
+      <button class="assetbtn" id="chatOpenBtnHeader" type="button">💬 채팅</button>
       <button class="assetbtn" id="communityOpenBtn" type="button">🖼️ 커뮤니티</button>
       <button class="assetbtn" id="hrOpenBtn" type="button">🧑‍💼 인사관리</button>
     </div>
@@ -1047,13 +1114,17 @@
     </div>
 
     <div class="statsrow-top" id="employeeQuickMenu">
-      <button class="stat-block" id="communityOpenBtnEmp" type="button" style="flex:1;">
-        <p class="statnum" style="font-size:22px;">🖼️</p>
-        <p class="statlabel">커뮤니티</p>
+      <button class="stat-block" id="chatOpenBtnEmp" type="button" style="flex:1;">
+        <p class="statnum" style="font-size:22px;">💬</p>
+        <p class="statlabel">채팅</p>
       </button>
       <button class="stat-block" id="suggestionOpenBtn" type="button" style="flex:1;">
         <p class="statnum" style="font-size:22px;">📮</p>
         <p class="statlabel">건의함</p>
+      </button>
+      <button class="stat-block" id="communityOpenBtnEmp" type="button" style="flex:1;">
+        <p class="statnum" style="font-size:22px;">🖼️</p>
+        <p class="statlabel">커뮤니티</p>
       </button>
     </div>
 
@@ -1199,6 +1270,45 @@
   <div style="background:var(--paper);border-radius:16px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;padding:20px;box-sizing:border-box;position:relative;">
     <button id="communityDetailCloseBtn" type="button" aria-label="닫기" style="position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;background:var(--paper-raised);color:var(--ink);border:none;font-size:16px;cursor:pointer;">✕</button>
     <div id="communityDetailBody"></div>
+  </div>
+</div>
+
+<div class="side-screen" id="chatScreen">
+  <div class="side-header">
+    <button class="side-back" id="chatBackBtn" type="button">‹ 뒤로</button>
+    <span class="side-title">💬 채팅</span>
+    <span style="width:44px;"></span>
+  </div>
+  <div class="side-scroll-wrap">
+    <div class="side-body">
+      <div class="chiprow" style="margin-bottom:14px;">
+        <button class="chip" id="chatTabEmployeesBtn" type="button">👥 직원</button>
+        <button class="chip selected" id="chatTabRoomsBtn" type="button">💬 채팅 메뉴</button>
+      </div>
+      <div id="chatListBody"></div>
+    </div>
+  </div>
+</div>
+
+<div class="side-screen" id="chatRoomScreen">
+  <div class="side-header">
+    <button class="side-back" id="chatRoomBackBtn" type="button">‹ 뒤로</button>
+    <span class="side-title" id="chatRoomTitle">채팅</span>
+    <button class="side-back" id="chatRoomLeaveBtn" type="button" style="display:none;">나가기</button>
+  </div>
+  <div class="side-scroll-wrap">
+    <div class="side-body" style="padding-bottom:190px;">
+      <div id="chatMessagesBody"></div>
+    </div>
+  </div>
+  <div class="chat-compose" id="chatComposeBar">
+    <div class="chiprow" id="chatEmojiRow" style="margin-bottom:8px;"></div>
+    <div id="chat_receiptPreview"></div>
+    <input type="file" accept="image/*" id="chat_receiptInput" style="display:none;">
+    <div style="display:flex;gap:8px;align-items:flex-end;margin-top:8px;">
+      <textarea id="chatComposeInput" rows="1" placeholder="메시지를 입력하세요"></textarea>
+      <button class="savebtn" id="chatSendBtn" type="button" style="padding:10px 16px;flex-shrink:0;">전송</button>
+    </div>
   </div>
 </div>
 
@@ -1716,7 +1826,7 @@
   // 권한적용: 일반 직원 화면에서 특정 기능(업무일지 시스템장애/건의함/커뮤니티/
   // MY정보의 상벌등록·자격현황·교육현황)을 아예 보이지 않게 끌 수 있어요.
   // 꺼도 관리자 화면에는 영향이 없어요.
-  var FEATURE_PERMISSION_DEFAULTS = { taskSystemFailure: true, suggestionBox: true, community: true, myAward: true, myCertification: true, myEducation: true };
+  var FEATURE_PERMISSION_DEFAULTS = { taskSystemFailure: true, suggestionBox: true, community: true, chat: true, myAward: true, myCertification: true, myEducation: true };
   var featurePermissions = Object.assign({}, FEATURE_PERMISSION_DEFAULTS);
   async function loadFeaturePermissions(){
     await ensureSettingsCacheLoaded();
@@ -2280,6 +2390,7 @@
     };
   }
   async function logout(){
+    stopChatPolling();
     await supabaseClient.auth.signOut();
     currentEmployee = null;
     loginMode = null;
@@ -9155,7 +9266,7 @@
   }
   // prefix별로 "사진 추가" 버튼 문구를 다르게 보여주고 싶을 때 여기에 등록해요
   // (예: 시스템장애 사진은 "영수증 사진"이 아니라 "장애상황 사진"이라고 불러야 해요).
-  var RECEIPT_ADD_LABELS = { tk_fail: '📷 장애상황 사진 추가', inc: '📷 장애상황 사진 추가' };
+  var RECEIPT_ADD_LABELS = { tk_fail: '📷 장애상황 사진 추가', inc: '📷 장애상황 사진 추가', chat: '📷 사진 보내기' };
   function receiptPreviewHTML(prefix){
     if(currentReceiptImage){
       return '<div style="position:relative;display:inline-block;">'+
@@ -9422,6 +9533,7 @@
     { key: 'taskSystemFailure', icon: '🖥️', label: '장애 관리', hint: '업무 버튼의 "장애 등록" 선택지와, 업무일지의 "장애조치" 업무유형(장애 연계)을 일반 직원에게 보여줄지 정해요.' },
     { key: 'suggestionBox', icon: '📮', label: '건의함', hint: '달력화면의 건의함 등록 버튼을 일반 직원에게 보여줄지 정해요.' },
     { key: 'community', icon: '🖼️', label: '커뮤니티', hint: '달력화면의 커뮤니티 버튼을 일반 직원에게 보여줄지 정해요.' },
+    { key: 'chat', icon: '💬', label: '채팅', hint: '달력화면의 채팅 버튼을 일반 직원에게 보여줄지 정해요. 꺼도 이미 나눈 대화 내용은 지워지지 않고, 다시 켜면 그대로 보여요(관리자 화면은 항상 그대로예요).' },
     { key: 'myAward', icon: '🏅', label: 'MY정보 상벌등록', hint: 'MY정보 화면의 "상벌 등록" 항목을 일반 직원에게 보여줄지 정해요.', group: 'MY정보' },
     { key: 'myCertification', icon: '📜', label: 'MY정보 자격현황', hint: 'MY정보 화면의 "자격현황" 항목을 일반 직원에게 보여줄지 정해요.', group: 'MY정보' },
     { key: 'myEducation', icon: '📚', label: 'MY정보 교육현황', hint: 'MY정보 화면의 "교육현황" 항목을 일반 직원에게 보여줄지 정해요.', group: 'MY정보' }
@@ -10118,6 +10230,422 @@
     await saveEntries();
     refreshAfterSave();
     openIncidentForm(inc);
+  }
+
+  // ---------- 채팅 (달력화면 > 💬 채팅) ----------
+  // 1:1 채팅방 id는 "dm:<정렬된 두 참가자id>"(누가 먼저 시작했든 같은 방을 가리키게),
+  // 단체채팅방은 고정 id "group"을 써요. entries/community_posts와 같은 구조로
+  // chat_messages(메시지 1건당 1행) 테이블에 저장하고, 회사 계정 하나를 함께
+  // 쓰는 이 앱의 구조상 조회 자체는 팀 전체에 열려있어요(다른 기능과 동일한
+  // 보안 모델) — 1:1방의 "비공개"는 화면단 구분이에요. 안읽음 배지 계산을 위해
+  // chat_reads(직원별 마지막으로 읽은 시각)를 별도 테이블로 둬요.
+  var CHAT_GROUP_ROOM_ID = 'group';
+  var CHAT_QUICK_EMOJIS = ['😀','😂','👍','🙏','❤️','😢','😮','🎉','🔥','✅'];
+  var CHAT_POLL_MS = 3000;
+  var chatMessages = []; // [{id, employeeId, roomId, roomType, senderId, senderName, recipientId, content, image, createdAt, updatedAt}]
+  var chatReads = []; // [{id, employeeId, roomId, readerId, lastReadAt}]
+  var chatActiveTab = 'rooms'; // 'rooms' | 'employees'
+  var chatSelectedEmployeeId = null;
+  var chatActiveRoomId = null;
+  var chatLeaveConfirming = false;
+  var chatPollTimer = null;
+
+  function chatSelfId(){ return currentEmployee ? currentEmployee.id : '__admin__'; }
+  function chatSelfName(){ return currentEmployee ? currentEmployee.name : '관리자'; }
+  function chatRoomIdForDirect(a, b){
+    var pair = [a, b].sort();
+    return 'dm:' + pair[0] + ':' + pair[1];
+  }
+
+  function chatMessageRowToObject(row){
+    return Object.assign({
+      id: row.id,
+      employeeId: row.employee_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }, row.data || {});
+  }
+  function chatMessageObjectToRow(obj, userId){
+    var rest = Object.assign({}, obj);
+    delete rest.id; delete rest.employeeId; delete rest.createdAt; delete rest.updatedAt;
+    return {
+      id: obj.id,
+      user_id: userId,
+      employee_id: obj.employeeId || null,
+      data: rest,
+      updated_at: obj.updatedAt || new Date().toISOString()
+    };
+  }
+  async function loadChatMessages(){
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid) return [];
+      var res = await supabaseClient.from('chat_messages').select('*').eq('user_id', uid);
+      if(res.error){ reportSyncError('채팅 불러오기', res.error); return []; }
+      return res.data.map(chatMessageRowToObject);
+    }catch(e){ reportSyncError('채팅 불러오기', e); return []; }
+  }
+  async function insertChatMessage(obj){
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid){ reportSyncError('채팅 보내기', '로그인 세션을 찾을 수 없어요'); return false; }
+      var row = chatMessageObjectToRow(obj, uid);
+      var res = await supabaseClient.from('chat_messages').insert([row]);
+      if(res.error){ reportSyncError('채팅 보내기', res.error); return false; }
+      return true;
+    }catch(e){ reportSyncError('채팅 보내기', e); return false; }
+  }
+  async function deleteChatMessagesByIds(ids){
+    if(!ids || !ids.length) return true;
+    try{
+      var res = await supabaseClient.from('chat_messages').delete().in('id', ids);
+      if(res.error){ reportSyncError('채팅 삭제', res.error); return false; }
+      return true;
+    }catch(e){ reportSyncError('채팅 삭제', e); return false; }
+  }
+
+  function chatReadRowToObject(row){
+    return Object.assign({ id: row.id, employeeId: row.employee_id, updatedAt: row.updated_at }, row.data || {});
+  }
+  function chatReadObjectToRow(obj, userId){
+    var rest = Object.assign({}, obj);
+    delete rest.id; delete rest.employeeId; delete rest.updatedAt;
+    return {
+      id: obj.id,
+      user_id: userId,
+      employee_id: obj.employeeId || null,
+      data: rest,
+      updated_at: new Date().toISOString()
+    };
+  }
+  async function loadChatReads(){
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid) return [];
+      var res = await supabaseClient.from('chat_reads').select('*').eq('user_id', uid);
+      if(res.error){ reportSyncError('채팅 읽음정보 불러오기', res.error); return []; }
+      return res.data.map(chatReadRowToObject);
+    }catch(e){ reportSyncError('채팅 읽음정보 불러오기', e); return []; }
+  }
+  async function upsertChatRead(roomId){
+    var selfId = chatSelfId();
+    var id = selfId + ':' + roomId;
+    var obj = { id: id, employeeId: currentEmployee ? currentEmployee.id : null, roomId: roomId, readerId: selfId, lastReadAt: new Date().toISOString() };
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid) return false;
+      var row = chatReadObjectToRow(obj, uid);
+      var res = await supabaseClient.from('chat_reads').upsert([row], { onConflict: 'id' });
+      if(res.error){ reportSyncError('채팅 읽음 표시', res.error); return false; }
+      var idx = chatReads.findIndex(function(r){ return r.id === id; });
+      if(idx >= 0) chatReads[idx] = obj; else chatReads.push(obj);
+      return true;
+    }catch(e){ reportSyncError('채팅 읽음 표시', e); return false; }
+  }
+
+  async function sendChatMessage(roomId, roomType, recipientId, content, image){
+    var now = new Date().toISOString();
+    var payload = {
+      id: uid(),
+      employeeId: currentEmployee ? currentEmployee.id : null,
+      roomId: roomId,
+      roomType: roomType,
+      senderId: chatSelfId(),
+      senderName: chatSelfName(),
+      recipientId: roomType === 'direct' ? recipientId : null,
+      content: (content || '').trim(),
+      image: image || null,
+      createdAt: now,
+      updatedAt: now
+    };
+    var ok = await insertChatMessage(payload);
+    if(ok) chatMessages.push(payload);
+    return ok;
+  }
+  function canDeleteChatMessage(m){
+    if(isAdminUser()) return true;
+    var selfId = chatSelfId();
+    if(m.senderId === selfId) return true;
+    if(m.roomType === 'direct' && m.recipientId === selfId) return true;
+    return false;
+  }
+  async function deleteChatMessage(id){
+    var ok = await deleteChatMessagesByIds([id]);
+    if(ok) chatMessages = chatMessages.filter(function(m){ return m.id !== id; });
+    return ok;
+  }
+  async function leaveChatRoom(roomId){
+    var ids = chatMessages.filter(function(m){ return m.roomId === roomId; }).map(function(m){ return m.id; });
+    var ok = await deleteChatMessagesByIds(ids);
+    if(ok) chatMessages = chatMessages.filter(function(m){ return m.roomId !== roomId; });
+    return ok;
+  }
+
+  // 로그인한 사람 기준으로 "채팅 메뉴"에 뜰 방 목록을 계산해요. 단체채팅방은
+  // 메시지가 하나도 없어도 항상 최상단에 고정으로 떠요(삭제 불가).
+  function chatRoomsForSelf(){
+    var selfId = chatSelfId();
+    var byRoom = {};
+    chatMessages.forEach(function(m){
+      if(m.roomType === 'group'){
+        if(!byRoom[m.roomId]) byRoom[m.roomId] = { roomId: m.roomId, roomType: 'group', otherId: null, messages: [] };
+        byRoom[m.roomId].messages.push(m);
+      }else if(m.roomType === 'direct'){
+        if(m.senderId !== selfId && m.recipientId !== selfId) return;
+        if(!byRoom[m.roomId]) byRoom[m.roomId] = { roomId: m.roomId, roomType: 'direct', otherId: (m.senderId === selfId ? m.recipientId : m.senderId), messages: [] };
+        byRoom[m.roomId].messages.push(m);
+      }
+    });
+    if(!byRoom[CHAT_GROUP_ROOM_ID]) byRoom[CHAT_GROUP_ROOM_ID] = { roomId: CHAT_GROUP_ROOM_ID, roomType: 'group', otherId: null, messages: [] };
+    var rooms = Object.keys(byRoom).map(function(k){ return byRoom[k]; });
+    rooms.forEach(function(r){
+      r.messages.sort(function(a,b){ return (a.createdAt||'') < (b.createdAt||'') ? -1 : 1; });
+      var last = r.messages[r.messages.length-1];
+      r.lastMessage = last ? (last.content || (last.image ? '📷 사진' : '')) : '';
+      r.lastAt = last ? last.createdAt : '';
+      if(r.roomType === 'direct'){
+        var otherEmp = employees.find(function(e){ return e.id === r.otherId; });
+        r.otherName = r.otherId === '__admin__' ? '관리자' : (otherEmp ? otherEmp.name : '(알 수 없음)');
+      }else{
+        r.otherName = '단체채팅방';
+      }
+      var readMarker = chatReads.find(function(x){ return x.roomId === r.roomId && x.readerId === selfId; });
+      var lastReadAt = readMarker ? readMarker.lastReadAt : '';
+      r.unread = r.messages.filter(function(m){ return m.senderId !== selfId && (!lastReadAt || m.createdAt > lastReadAt); }).length;
+    });
+    rooms.sort(function(a,b){
+      if(a.roomType === 'group') return -1;
+      if(b.roomType === 'group') return 1;
+      return (b.lastAt||'') < (a.lastAt||'') ? -1 : 1;
+    });
+    return rooms;
+  }
+  function chatTotalUnread(){
+    return chatRoomsForSelf().reduce(function(sum, r){ return sum + r.unread; }, 0);
+  }
+  function updateChatBadges(){
+    var total = chatTotalUnread();
+    ['chatOpenBtnHeader', 'chatOpenBtnEmp'].forEach(function(id){
+      var btn = document.getElementById(id);
+      if(!btn) return;
+      var badge = btn.querySelector('.chat-unread-badge');
+      if(total > 0){
+        if(!badge){
+          badge = document.createElement('span');
+          badge.className = 'chat-unread-badge';
+          btn.appendChild(badge);
+        }
+        badge.textContent = total > 99 ? '99+' : String(total);
+      }else if(badge){
+        badge.remove();
+      }
+    });
+  }
+
+  function startChatPolling(){
+    stopChatPolling();
+    chatPollTimer = setInterval(async function(){
+      chatMessages = await loadChatMessages();
+      chatReads = await loadChatReads();
+      if(document.getElementById('chatRoomScreen').classList.contains('open')){
+        renderChatRoomMessages();
+      }
+      if(document.getElementById('chatScreen').classList.contains('open')){
+        renderChatListBody();
+      }
+      updateChatBadges();
+    }, CHAT_POLL_MS);
+  }
+  function stopChatPolling(){
+    if(chatPollTimer){ clearInterval(chatPollTimer); chatPollTimer = null; }
+  }
+
+  function renderChatEmployeeListHTML(){
+    var selfId = chatSelfId();
+    var list = employees.filter(function(e){
+      return e.id !== selfId && !e.resignDate && !(e.leaveDate && !e.returnDate);
+    }).sort(function(a,b){ return (a.name||'').localeCompare(b.name||'', 'ko'); });
+    var html = '';
+    if(list.length === 0){
+      html += '<p class="empty-inline">채팅할 수 있는 다른 직원이 없어요.</p>';
+    }else{
+      list.forEach(function(e){
+        var selected = chatSelectedEmployeeId === e.id;
+        html += '<div class="rule-card" data-chat-emp="'+e.id+'" style="margin-bottom:8px;cursor:pointer;'+(selected?'border-color:var(--pine);':'')+'">';
+        html += '<span>👤 '+escapeHtml(e.name)+(e.role?' · '+escapeHtml(e.role):'')+'</span>';
+        html += '</div>';
+      });
+      html += '<button class="savebtn" id="chatStartBtn" type="button" style="width:100%;margin-top:6px;"'+(chatSelectedEmployeeId?'':' disabled')+'>채팅하기</button>';
+    }
+    return html;
+  }
+  function renderChatRoomListHTML(){
+    var rooms = chatRoomsForSelf();
+    var html = '';
+    rooms.forEach(function(r){
+      var icon = r.roomType === 'group' ? '👥' : '💬';
+      html += '<div class="rule-card" data-chat-room="'+r.roomId+'" style="margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;">';
+      html += '<div style="min-width:0;flex:1;">';
+      html += '<p style="font-weight:700;font-size:14px;">'+icon+' '+escapeHtml(r.otherName)+(r.roomType==='group'?' <span style="font-size:11px;color:var(--ink-faint);font-weight:400;">(고정)</span>':'')+'</p>';
+      html += '<p style="font-size:12px;color:var(--ink-soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;">'+(r.lastMessage?escapeHtml(r.lastMessage.slice(0,40)):'대화를 시작해보세요')+'</p>';
+      html += '</div>';
+      if(r.unread > 0){
+        html += '<span class="chat-room-badge">'+(r.unread>99?'99+':r.unread)+'</span>';
+      }
+      html += '</div>';
+    });
+    return html;
+  }
+  function renderChatListBody(){
+    var tabRoomsBtn = document.getElementById('chatTabRoomsBtn');
+    var tabEmpBtn = document.getElementById('chatTabEmployeesBtn');
+    if(tabRoomsBtn) tabRoomsBtn.classList.toggle('selected', chatActiveTab === 'rooms');
+    if(tabEmpBtn) tabEmpBtn.classList.toggle('selected', chatActiveTab === 'employees');
+    var body = document.getElementById('chatListBody');
+    if(!body) return;
+    body.innerHTML = chatActiveTab === 'employees' ? renderChatEmployeeListHTML() : renderChatRoomListHTML();
+    if(chatActiveTab === 'employees'){
+      body.querySelectorAll('[data-chat-emp]').forEach(function(el){
+        el.addEventListener('click', function(){
+          chatSelectedEmployeeId = el.getAttribute('data-chat-emp');
+          renderChatListBody();
+        });
+        el.addEventListener('dblclick', function(){
+          openChatRoomWithEmployee(el.getAttribute('data-chat-emp'));
+        });
+      });
+      var startBtn = document.getElementById('chatStartBtn');
+      if(startBtn){
+        startBtn.addEventListener('click', function(){
+          if(chatSelectedEmployeeId) openChatRoomWithEmployee(chatSelectedEmployeeId);
+        });
+      }
+    }else{
+      body.querySelectorAll('[data-chat-room]').forEach(function(el){
+        el.addEventListener('click', function(){
+          var roomId = el.getAttribute('data-chat-room');
+          var r = chatRoomsForSelf().find(function(x){ return x.roomId === roomId; });
+          if(r) openChatRoom(r.roomId, r.roomType, r.otherId, r.otherName);
+        });
+      });
+    }
+    updateChatBadges();
+  }
+
+  function openChatRoomWithEmployee(empId){
+    var emp = employees.find(function(e){ return e.id === empId; });
+    var name = emp ? emp.name : '(알 수 없음)';
+    openChatRoom(chatRoomIdForDirect(chatSelfId(), empId), 'direct', empId, name);
+  }
+  function openChatGroupRoom(){
+    openChatRoom(CHAT_GROUP_ROOM_ID, 'group', null, '단체채팅방');
+  }
+  function openChatRoom(roomId, roomType, otherId, otherName){
+    chatActiveRoomId = roomId;
+    chatLeaveConfirming = false;
+    document.getElementById('chatRoomTitle').textContent = (roomType === 'group' ? '👥 ' : '💬 ') + otherName;
+    var leaveBtn = document.getElementById('chatRoomLeaveBtn');
+    leaveBtn.style.display = roomType === 'direct' ? '' : 'none';
+    leaveBtn.textContent = '나가기';
+    leaveBtn.style.color = '';
+    currentReceiptImage = null;
+    refreshReceiptPreview('chat');
+    document.getElementById('chatComposeInput').value = '';
+    document.getElementById('chatScreen').classList.remove('open');
+    document.getElementById('chatRoomScreen').classList.add('open');
+    renderChatRoomMessages();
+    upsertChatRead(roomId);
+    startChatPolling();
+  }
+  function closeChatRoom(){
+    document.getElementById('chatRoomScreen').classList.remove('open');
+    document.getElementById('chatScreen').classList.add('open');
+    chatActiveTab = 'rooms';
+    renderChatListBody();
+    startChatPolling();
+  }
+  function scrollChatToBottom(){
+    var wrap = document.querySelector('#chatRoomScreen .side-scroll-wrap');
+    if(wrap) wrap.scrollTop = wrap.scrollHeight;
+  }
+  function renderChatRoomMessages(){
+    var body = document.getElementById('chatMessagesBody');
+    if(!body) return;
+    var selfId = chatSelfId();
+    var msgs = chatMessages.filter(function(m){ return m.roomId === chatActiveRoomId; })
+      .slice().sort(function(a,b){ return (a.createdAt||'') < (b.createdAt||'') ? -1 : 1; });
+    var html = '';
+    if(msgs.length === 0){
+      html += '<p class="empty-inline">아직 대화가 없어요. 첫 메시지를 보내보세요.</p>';
+    }
+    msgs.forEach(function(m){
+      var mine = m.senderId === selfId;
+      html += '<div class="chat-bubble-row" style="align-items:'+(mine?'flex-end':'flex-start')+';">';
+      if(!mine && m.roomType === 'group'){
+        html += '<span style="font-size:11px;color:var(--ink-faint);margin-bottom:2px;">'+escapeHtml(m.senderName||'')+'</span>';
+      }
+      html += '<div class="chat-bubble" style="background:'+(mine?'var(--pine)':'var(--paper-raised)')+';color:'+(mine?'#fff':'var(--ink)')+';">';
+      if(m.image){
+        html += '<img src="'+m.image+'" data-chat-img-view="'+m.id+'" style="max-width:180px;max-height:180px;border-radius:8px;display:block;cursor:pointer;'+(m.content?'margin-bottom:6px;':'')+'">';
+      }
+      if(m.content) html += escapeHtml(m.content);
+      html += '</div>';
+      html += '<div style="display:flex;gap:8px;align-items:center;margin-top:3px;">';
+      html += '<span style="font-size:10.5px;color:var(--ink-faint);">'+((m.createdAt||'').slice(11,16))+'</span>';
+      if(canDeleteChatMessage(m)){
+        html += '<button data-chat-del="'+m.id+'" type="button" style="font-size:10.5px;color:var(--brick);background:none;border:none;cursor:pointer;padding:0;">삭제</button>';
+      }
+      html += '</div></div>';
+    });
+    body.innerHTML = html;
+    body.querySelectorAll('[data-chat-img-view]').forEach(function(img){
+      img.addEventListener('click', function(){ openImageViewer(img.getAttribute('src')); });
+    });
+    body.querySelectorAll('[data-chat-del]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        await deleteChatMessage(btn.getAttribute('data-chat-del'));
+        renderChatRoomMessages();
+      });
+    });
+    scrollChatToBottom();
+  }
+  function renderChatEmojiRow(){
+    var row = document.getElementById('chatEmojiRow');
+    if(!row) return;
+    row.innerHTML = CHAT_QUICK_EMOJIS.map(function(em){
+      return '<button type="button" class="chip chat-emoji-chip" data-chat-emoji="'+em+'">'+em+'</button>';
+    }).join('');
+    row.querySelectorAll('[data-chat-emoji]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var ta = document.getElementById('chatComposeInput');
+        ta.value += btn.getAttribute('data-chat-emoji');
+        ta.focus();
+      });
+    });
+  }
+  async function handleChatSend(){
+    var ta = document.getElementById('chatComposeInput');
+    var content = ta.value.trim();
+    var image = currentReceiptImage;
+    if(!content && !image) return;
+    var roomId = chatActiveRoomId;
+    var roomType = roomId === CHAT_GROUP_ROOM_ID ? 'group' : 'direct';
+    var recipientId = null;
+    if(roomType === 'direct'){
+      var parts = roomId.split(':');
+      var a = parts[1], b = parts[2];
+      recipientId = (a === chatSelfId()) ? b : a;
+    }
+    var sendBtn = document.getElementById('chatSendBtn');
+    sendBtn.disabled = true;
+    var ok = await sendChatMessage(roomId, roomType, recipientId, content, image);
+    sendBtn.disabled = false;
+    if(ok){
+      ta.value = '';
+      currentReceiptImage = null;
+      refreshReceiptPreview('chat');
+      renderChatRoomMessages();
+    }
   }
 
   // ---------- Attendance (근무기록) form ----------
@@ -11897,6 +12425,59 @@
     document.getElementById('communityDetailModal').addEventListener('click', function(ev){
       if(ev.target.id === 'communityDetailModal') closeCommunityDetail();
     });
+    function openChatScreenFromMenu(){
+      chatActiveTab = 'rooms';
+      chatSelectedEmployeeId = null;
+      renderChatListBody();
+      document.getElementById('chatScreen').classList.add('open');
+      startChatPolling();
+    }
+    document.getElementById('chatOpenBtnHeader').addEventListener('click', openChatScreenFromMenu);
+    document.getElementById('chatOpenBtnEmp').addEventListener('click', openChatScreenFromMenu);
+    document.getElementById('chatBackBtn').addEventListener('click', function(){
+      document.getElementById('chatScreen').classList.remove('open');
+      stopChatPolling();
+    });
+    document.getElementById('chatTabRoomsBtn').addEventListener('click', function(){
+      chatActiveTab = 'rooms';
+      renderChatListBody();
+    });
+    document.getElementById('chatTabEmployeesBtn').addEventListener('click', function(){
+      chatActiveTab = 'employees';
+      chatSelectedEmployeeId = null;
+      renderChatListBody();
+    });
+    document.getElementById('chatRoomBackBtn').addEventListener('click', closeChatRoom);
+    document.getElementById('chatRoomLeaveBtn').addEventListener('click', async function(){
+      var btn = document.getElementById('chatRoomLeaveBtn');
+      if(!chatLeaveConfirming){
+        chatLeaveConfirming = true;
+        btn.textContent = '정말 나가기?';
+        btn.style.color = 'var(--brick)';
+        setTimeout(function(){
+          if(chatLeaveConfirming){
+            chatLeaveConfirming = false;
+            btn.textContent = '나가기';
+            btn.style.color = '';
+          }
+        }, 3000);
+        return;
+      }
+      chatLeaveConfirming = false;
+      var roomId = chatActiveRoomId;
+      await leaveChatRoom(roomId);
+      closeChatRoom();
+    });
+    document.getElementById('chatSendBtn').addEventListener('click', handleChatSend);
+    document.getElementById('chatComposeInput').addEventListener('keydown', function(ev){
+      if(ev.key === 'Enter' && !ev.shiftKey){
+        ev.preventDefault();
+        handleChatSend();
+      }
+    });
+    renderChatEmojiRow();
+    wireReceiptField('chat');
+    refreshReceiptPreview('chat');
     document.getElementById('employeeOptionsRowBtn').addEventListener('click', function(){
       closeSheet('settingsSheet');
       renderEmployeeOptionsScreen();
@@ -12072,11 +12653,19 @@
     // 끌 수 있어요(꺼도 관리자 본인 화면에는 영향 없어요).
     var communityAllowed = admin || featurePermissions.community !== false;
     var suggestionAllowed = admin || featurePermissions.suggestionBox !== false;
+    var chatAllowed = admin || featurePermissions.chat !== false;
     if(communityEmpBtn) communityEmpBtn.style.display = communityAllowed ? '' : 'none';
     if(suggestionBtn) suggestionBtn.style.display = suggestionAllowed ? '' : 'none';
-    if(empQuickMenu) empQuickMenu.style.display = (!admin && (communityAllowed || suggestionAllowed)) ? '' : 'none';
+    var chatEmpBtn = document.getElementById('chatOpenBtnEmp');
+    if(chatEmpBtn) chatEmpBtn.style.display = chatAllowed ? '' : 'none';
+    if(empQuickMenu) empQuickMenu.style.display = (!admin && (communityAllowed || suggestionAllowed || chatAllowed)) ? '' : 'none';
     var communityHeaderBtn = document.getElementById('communityOpenBtn');
     if(communityHeaderBtn) communityHeaderBtn.style.display = admin ? '' : 'none';
+    // 채팅은 관리자 화면에서는 항상 상단(통계 옆) 버튼으로만 접근해요(일반 직원용
+    // 퀵메뉴 자리는 관리자 화면에서는 통계 블록이 차지하고 있어서요).
+    var chatHeaderBtn = document.getElementById('chatOpenBtnHeader');
+    if(chatHeaderBtn) chatHeaderBtn.style.display = admin ? '' : 'none';
+    updateChatBadges();
     var adminSettings = document.getElementById('settingsAdminSection');
     if(adminSettings) adminSettings.style.display = admin ? '' : 'none';
     var infoBox = document.getElementById('currentEmployeeInfo');
@@ -12137,6 +12726,9 @@
       surveyResponses = await loadSurveyResponses();
       communityPosts = await loadCommunityPosts();
       suggestions = await loadSuggestions();
+      chatMessages = await loadChatMessages();
+      chatReads = await loadChatReads();
+      updateChatBadges();
       announcements = await loadAnnouncements();
       renderAnnouncementBanner();
       var backupReminderData = await loadBackupReminder();
