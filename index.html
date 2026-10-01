@@ -10869,10 +10869,24 @@
   async function leaveChatRoom(roomId){
     var meta = chatCustomRooms.find(function(r){ return r.id === roomId; });
     if(meta){
-      // 다중채팅방은 나만 나가는 거라, 다른 멤버를 위해 대화 내용은 그대로
-      // 두고 나만 멤버 목록에서 빠져요(1:1방처럼 방 전체를 지우지 않아요).
+      // 다중채팅방은 보통 나만 나가는 거라, 다른 멤버를 위해 대화 내용은
+      // 그대로 두고 나만 멤버 목록에서 빠져요(1:1방처럼 방 전체를 지우지
+      // 않아요). 다만 내가 "마지막 남은 1명"으로서 나가는 경우는 달라요 —
+      // 그 방엔 더 이상 아무도 없으니 대화 내용을 남겨둘 이유가 없고,
+      // 나중에 똑같은 멤버로 다시 다중채팅을 시작하면(같은 멤버 조합은 방
+      // id가 똑같이 재사용돼요) "새 대화"로 보여야 자연스러워요. 그래서 이
+      // 경우엔 메시지를 전부 지워요. 멤버 목록을 먼저 비워버리면(나를
+      // 빼고) 그 다음엔 내가 더 이상 "이 방의 멤버"가 아니게 돼서 메시지
+      // 삭제 권한(RLS) 조건을 통과 못 하니, 반드시 메시지 삭제를 먼저 하고
+      // 그 다음에 멤버 목록을 비워요.
       var selfId = chatSelfId();
-      var updated = Object.assign({}, meta, { memberIds: (meta.memberIds || []).filter(function(id){ return id !== selfId; }), updatedAt: new Date().toISOString() });
+      var remainingMemberIds = (meta.memberIds || []).filter(function(id){ return id !== selfId; });
+      if(remainingMemberIds.length === 0){
+        var msgIds = chatMessages.filter(function(m){ return m.roomId === roomId; }).map(function(m){ return m.id; });
+        var delOk = await deleteChatMessagesByIds(msgIds);
+        if(delOk) chatMessages = chatMessages.filter(function(m){ return m.roomId !== roomId; });
+      }
+      var updated = Object.assign({}, meta, { memberIds: remainingMemberIds, updatedAt: new Date().toISOString() });
       return await upsertChatRoom(updated);
     }
     var ids = chatMessages.filter(function(m){ return m.roomId === roomId; }).map(function(m){ return m.id; });
