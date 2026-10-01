@@ -1333,14 +1333,23 @@
 <div class="side-screen" id="chatRoomScreen">
   <div class="side-header">
     <button class="side-back" id="chatRoomBackBtn" type="button">‹</button>
-    <span class="side-title" id="chatRoomTitle">채팅</span>
+    <div style="display:flex;flex-direction:column;align-items:center;min-width:0;flex:1;">
+      <span class="side-title" id="chatRoomTitle" style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">채팅</span>
+      <button type="button" id="chatRoomMemberCountBtn" style="background:none;border:none;padding:0;margin-top:2px;font-size:11.5px;color:var(--ink-soft);cursor:pointer;">👥 0명</button>
+    </div>
     <div style="display:flex;gap:6px;align-items:center;">
+      <button class="side-icon-circle" id="chatRoomSearchBtn" type="button" aria-label="채팅 검색">🔍</button>
       <button class="side-icon-circle" id="chatRoomRenameBtn" type="button" aria-label="채팅방 이름 변경" style="display:none;">✏️</button>
       <button class="side-back" id="chatRoomLeaveBtn" type="button" style="display:none;">나가기</button>
     </div>
   </div>
   <div class="side-scroll-wrap">
-    <div class="side-body" style="padding-bottom:190px;">
+    <div class="side-body" style="padding-bottom:190px;padding-top:calc(100px + env(safe-area-inset-top));">
+      <div id="chatSearchBar" style="display:none;gap:8px;align-items:center;position:sticky;top:0;background:var(--paper);padding:6px 0 10px;margin-bottom:6px;z-index:1;">
+        <input type="text" id="chatSearchInput" placeholder="메시지 검색" style="flex:1;">
+        <span id="chatSearchCount" style="font-size:11px;color:var(--ink-soft);white-space:nowrap;"></span>
+        <button type="button" id="chatSearchCloseBtn" style="background:none;border:none;cursor:pointer;font-size:15px;padding:4px;">✕</button>
+      </div>
       <div id="chatMessagesBody"></div>
     </div>
   </div>
@@ -1361,6 +1370,22 @@
     <button class="sheet-close" id="chatRoomNameCloseBtn" type="button">✕</button>
   </div>
   <div id="chatRoomNameBody"></div>
+</div>
+
+<div class="bottom-sheet" id="chatMembersSheet">
+  <div class="sheet-head">
+    <span class="sheet-title" id="chatMembersSheetTitle">👥 참여자</span>
+    <button class="sheet-close" id="chatMembersCloseBtn" type="button">✕</button>
+  </div>
+  <div id="chatMembersBody"></div>
+</div>
+
+<div class="bottom-sheet" id="chatDateJumpSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">📅 날짜로 이동</span>
+    <button class="sheet-close" id="chatDateJumpCloseBtn" type="button">✕</button>
+  </div>
+  <div id="chatDateJumpBody"></div>
 </div>
 
 <div class="side-screen" id="employeeOptionsScreen">
@@ -10513,6 +10538,9 @@
   var chatActiveRoomId = null;
   var chatLeaveConfirming = false;
   var chatPollTimer = null;
+  var chatAddMemberSelectedIds = []; // 다중채팅방에 새로 추가할 직원 선택(참여자 시트 > 멤버 추가)
+  var chatSearchQuery = ''; // 채팅방 상단 🔍 검색어
+  var chatDateJumpMonth = null; // 📅 날짜로 이동 시트가 보여주는 월('YYYY-MM')
 
   function chatSelfId(){ return currentEmployee ? currentEmployee.id : '__admin__'; }
   function chatSelfName(){ return currentEmployee ? currentEmployee.name : '관리자'; }
@@ -10540,6 +10568,54 @@
       return emp ? emp.name : '(알 수 없음)';
     });
     return names.join(', ') || '다중채팅방';
+  }
+  function chatParticipantName(id){
+    if(id === '__admin__') return '관리자';
+    var emp = employees.find(function(e){ return e.id === id; });
+    return emp ? emp.name : '(알 수 없음)';
+  }
+  // 방 종류별 "참가자" 전체 목록(나 포함)이에요. 1:1은 둘, 고정 단체채팅방은
+  // 재직 중인 전체 직원+관리자, 다중채팅방은 등록된 memberIds를 그대로 써요.
+  // 헤더의 인원수 표시/참여자 목록/안읽음 계산에서 공통으로 사용해요.
+  function chatRoomParticipantIds(roomId, roomType){
+    var selfId = chatSelfId();
+    if(roomType === 'direct'){
+      var parts = (roomId||'').split(':');
+      var otherId = (parts[1] === selfId) ? parts[2] : parts[1];
+      return [selfId, otherId];
+    }
+    if(roomType === 'customGroup'){
+      var meta = chatCustomRooms.find(function(r){ return r.id === roomId; });
+      var ids = meta && meta.memberIds ? meta.memberIds.slice() : [selfId];
+      if(ids.indexOf(selfId) === -1) ids.push(selfId);
+      return ids;
+    }
+    var all = employees.filter(function(e){ return !e.resignDate && !(e.leaveDate && !e.returnDate); }).map(function(e){ return e.id; });
+    all.push('__admin__');
+    if(all.indexOf(selfId) === -1) all.push(selfId);
+    return all;
+  }
+  // 메시지 하나의 날짜 구분(YYYY-MM-DD)과, 날짜 구분선에 보여줄 "YYYY년 M월
+  // D일 요일" 문구를 만들어요.
+  function chatMessageDateKey(m){
+    return (m.createdAt || '').slice(0, 10);
+  }
+  function chatFormatDateDivider(dateKey){
+    var parts = (dateKey || '').split('-').map(function(n){ return parseInt(n, 10); });
+    if(parts.length !== 3 || parts.some(isNaN)) return dateKey || '';
+    var dt = new Date(parts[0], parts[1] - 1, parts[2]);
+    var wk = ['일','월','화','수','목','금','토'][dt.getDay()];
+    return parts[0] + '년 ' + parts[1] + '월 ' + parts[2] + '일 ' + wk + '요일';
+  }
+  // 검색어와 일치하는 부분만 강조(mark)해서 보여줘요. 대소문자 구분 없이
+  // 찾되, 화면엔 원문 그대로(이스케이프만 적용) 표시해요.
+  function chatHighlightMatch(text, query){
+    var esc = escapeHtml(text || '');
+    var escQuery = escapeHtml(query || '').trim();
+    if(!escQuery) return esc;
+    var idx = esc.toLowerCase().indexOf(escQuery.toLowerCase());
+    if(idx === -1) return esc;
+    return esc.slice(0, idx) + '<mark style="background:var(--brick-soft);color:inherit;border-radius:3px;">' + esc.slice(idx, idx + escQuery.length) + '</mark>' + esc.slice(idx + escQuery.length);
   }
 
   function chatMessageRowToObject(row){
@@ -10705,6 +10781,14 @@
     return ok;
   }
   async function leaveChatRoom(roomId){
+    var meta = chatCustomRooms.find(function(r){ return r.id === roomId; });
+    if(meta){
+      // 다중채팅방은 나만 나가는 거라, 다른 멤버를 위해 대화 내용은 그대로
+      // 두고 나만 멤버 목록에서 빠져요(1:1방처럼 방 전체를 지우지 않아요).
+      var selfId = chatSelfId();
+      var updated = Object.assign({}, meta, { memberIds: (meta.memberIds || []).filter(function(id){ return id !== selfId; }), updatedAt: new Date().toISOString() });
+      return await upsertChatRoom(updated);
+    }
     var ids = chatMessages.filter(function(m){ return m.roomId === roomId; }).map(function(m){ return m.id; });
     var ok = await deleteChatMessagesByIds(ids);
     if(ok) chatMessages = chatMessages.filter(function(m){ return m.roomId !== roomId; });
@@ -10942,12 +11026,24 @@
     }
     openChatRoom(roomId, 'customGroup', null, chatCustomGroupDisplayName(existing, selfId));
   }
+  function updateChatRoomHeaderSubtitle(){
+    var roomType = chatActiveRoomId === CHAT_GROUP_ROOM_ID ? 'group' : (chatCustomRooms.some(function(r){ return r.id === chatActiveRoomId; }) ? 'customGroup' : 'direct');
+    var ids = chatRoomParticipantIds(chatActiveRoomId, roomType);
+    var btn = document.getElementById('chatRoomMemberCountBtn');
+    if(btn) btn.textContent = '👥 ' + ids.length + '명';
+  }
   async function openChatRoom(roomId, roomType, otherId, otherName){
     chatActiveRoomId = roomId;
     chatLeaveConfirming = false;
+    chatSearchQuery = '';
     document.getElementById('chatRoomTitle').textContent = (roomType === 'group' || roomType === 'customGroup' ? '👥 ' : '💬 ') + otherName;
+    updateChatRoomHeaderSubtitle();
+    var searchBar = document.getElementById('chatSearchBar');
+    if(searchBar){ searchBar.style.display = 'none'; }
+    var searchInput = document.getElementById('chatSearchInput');
+    if(searchInput) searchInput.value = '';
     var leaveBtn = document.getElementById('chatRoomLeaveBtn');
-    leaveBtn.style.display = roomType === 'direct' ? '' : 'none';
+    leaveBtn.style.display = (roomType === 'direct' || roomType === 'customGroup') ? '' : 'none';
     leaveBtn.textContent = '나가기';
     leaveBtn.style.color = '';
     var renameBtn = document.getElementById('chatRoomRenameBtn');
@@ -10961,6 +11057,7 @@
     chatMessages = await loadChatMessages();
     chatReads = await loadChatReads();
     chatCustomRooms = await loadChatRooms();
+    updateChatRoomHeaderSubtitle();
     renderChatRoomMessages();
     await upsertChatRead(roomId);
     updateChatBadges();
@@ -10998,6 +11095,152 @@
     });
     openSheet('chatRoomNameSheet');
   }
+
+  // 채팅방 상단의 "👥 N명" 버튼을 누르면 참여자 목록을 보여주는 시트예요.
+  // 다중채팅방이면 목록 아래에 "+ 멤버 추가" 버튼이 함께 보여요(1:1·고정
+  // 단체채팅방은 멤버를 더할 수 없으니 그 버튼이 안 보여요).
+  function openChatMembersSheet(){
+    var roomType = chatActiveRoomId === CHAT_GROUP_ROOM_ID ? 'group' : (chatCustomRooms.some(function(r){ return r.id === chatActiveRoomId; }) ? 'customGroup' : 'direct');
+    chatAddMemberSelectedIds = [];
+    renderChatMembersBody(roomType, 'list');
+    openSheet('chatMembersSheet');
+  }
+  function renderChatMembersBody(roomType, mode){
+    var selfId = chatSelfId();
+    var ids = chatRoomParticipantIds(chatActiveRoomId, roomType);
+    var body = document.getElementById('chatMembersBody');
+    if(!body) return;
+    var titleEl = document.getElementById('chatMembersSheetTitle');
+    if(titleEl) titleEl.textContent = '👥 참여자 (' + ids.length + '명)';
+    var html = '';
+    if(mode === 'list'){
+      ids.forEach(function(id){
+        html += '<div class="rule-card" style="margin-bottom:8px;">';
+        html += '<span>👤 ' + escapeHtml(chatParticipantName(id)) + (id === selfId ? ' (나)' : '') + '</span>';
+        html += '</div>';
+      });
+      if(roomType === 'customGroup'){
+        html += '<button class="savebtn" id="cm_addMemberBtn" type="button" style="width:100%;margin-top:6px;">+ 멤버 추가</button>';
+      }
+      body.innerHTML = html;
+      var addBtn = document.getElementById('cm_addMemberBtn');
+      if(addBtn){
+        addBtn.addEventListener('click', function(){
+          chatAddMemberSelectedIds = [];
+          renderChatMembersBody(roomType, 'add');
+        });
+      }
+    }else{
+      var candidates = chatEligibleEmployees().filter(function(e){ return ids.indexOf(e.id) === -1; });
+      if(candidates.length === 0){
+        html += '<p class="empty-inline">추가할 수 있는 직원이 없어요.</p>';
+      }else{
+        candidates.forEach(function(e){
+          var selected = chatAddMemberSelectedIds.indexOf(e.id) !== -1;
+          html += '<div class="rule-card" data-cm-add="'+e.id+'" style="margin-bottom:8px;cursor:pointer;'+(selected?'border-color:var(--pine);':'')+'">';
+          html += '<span>'+(selected?'✅':'👤')+' '+escapeHtml(e.name)+(e.role==='관리자'?' · 관리자':'')+'</span>';
+          html += '</div>';
+        });
+      }
+      html += '<div class="row2" style="margin-top:10px;"><button class="cancelbtn" id="cm_addCancelBtn" type="button">취소</button><button class="savebtn" id="cm_addConfirmBtn" type="button">추가</button></div>';
+      body.innerHTML = html;
+      body.querySelectorAll('[data-cm-add]').forEach(function(el){
+        el.addEventListener('click', function(){
+          var id = el.getAttribute('data-cm-add');
+          var idx = chatAddMemberSelectedIds.indexOf(id);
+          if(idx === -1) chatAddMemberSelectedIds.push(id); else chatAddMemberSelectedIds.splice(idx, 1);
+          renderChatMembersBody(roomType, 'add');
+        });
+      });
+      document.getElementById('cm_addCancelBtn').addEventListener('click', function(){ renderChatMembersBody(roomType, 'list'); });
+      document.getElementById('cm_addConfirmBtn').addEventListener('click', async function(){
+        if(chatAddMemberSelectedIds.length === 0){ renderChatMembersBody(roomType, 'list'); return; }
+        var meta = chatCustomRooms.find(function(r){ return r.id === chatActiveRoomId; });
+        if(!meta) return;
+        var newMemberIds = meta.memberIds.slice();
+        chatAddMemberSelectedIds.forEach(function(id){ if(newMemberIds.indexOf(id) === -1) newMemberIds.push(id); });
+        var updated = Object.assign({}, meta, { memberIds: newMemberIds.sort(), updatedAt: new Date().toISOString() });
+        var ok = await upsertChatRoom(updated);
+        if(ok){
+          document.getElementById('chatRoomTitle').textContent = '👥 ' + chatCustomGroupDisplayName(updated, selfId);
+          updateChatRoomHeaderSubtitle();
+          renderChatListBody();
+          chatAddMemberSelectedIds = [];
+          renderChatMembersBody('customGroup', 'list');
+        }
+      });
+    }
+  }
+
+  // 채팅방 날짜 구분선을 누르면 뜨는 미니 달력이에요. 그 방에서 실제로
+  // 메시지가 있던 날짜만 선택할 수 있고(없는 날짜는 비활성), 고르면 해당
+  // 날짜의 첫 메시지로 스크롤 이동해요.
+  function chatDatesWithMessages(){
+    var set = {};
+    chatMessages.filter(function(m){ return m.roomId === chatActiveRoomId; }).forEach(function(m){
+      var key = chatMessageDateKey(m);
+      if(key) set[key] = true;
+    });
+    return set;
+  }
+  function chatScrollToDate(dateStr){
+    var el = document.querySelector('[data-chat-date-divider="'+dateStr+'"]');
+    if(el) el.scrollIntoView({ block: 'start' });
+  }
+  function openChatDateJumpSheet(){
+    var dateSet = chatDatesWithMessages();
+    var keys = Object.keys(dateSet).sort();
+    var lastKey = keys.length ? keys[keys.length - 1] : new Date().toISOString().slice(0, 10);
+    chatDateJumpMonth = lastKey.slice(0, 7);
+    renderChatDateJumpBody();
+    openSheet('chatDateJumpSheet');
+  }
+  function renderChatDateJumpBody(){
+    var dateSet = chatDatesWithMessages();
+    var body = document.getElementById('chatDateJumpBody');
+    if(!body) return;
+    var parts = chatDateJumpMonth.split('-');
+    var y = parseInt(parts[0], 10), mo = parseInt(parts[1], 10);
+    var firstDay = new Date(y, mo - 1, 1);
+    var startWeekday = firstDay.getDay();
+    var daysInMonth = new Date(y, mo, 0).getDate();
+    var html = '';
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">';
+    html += '<button type="button" id="cdj_prevBtn" class="side-back" style="padding:6px 10px;">‹</button>';
+    html += '<span style="font-weight:700;">'+y+'년 '+mo+'월</span>';
+    html += '<button type="button" id="cdj_nextBtn" class="side-back" style="padding:6px 10px;">›</button>';
+    html += '</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;text-align:center;font-size:12px;color:var(--ink-faint);margin-bottom:4px;">';
+    ['일','월','화','수','목','금','토'].forEach(function(w){ html += '<div>'+w+'</div>'; });
+    html += '</div>';
+    html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">';
+    for(var i=0;i<startWeekday;i++){ html += '<div></div>'; }
+    for(var d=1; d<=daysInMonth; d++){
+      var dateStr = y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+      var has = !!dateSet[dateStr];
+      html += '<button type="button" '+(has?('data-cdj-date="'+dateStr+'"'):'disabled')+' style="padding:6px 0;border:none;background:'+(has?'var(--pine)':'transparent')+';color:'+(has?'#fff':'var(--ink-faint)')+';border-radius:6px;cursor:'+(has?'pointer':'default')+';font-size:13px;">'+d+'</button>';
+    }
+    html += '</div>';
+    html += '<p class="savehint" style="margin-top:10px;">파란 날짜만 대화가 있어요. 날짜를 선택하면 그 날의 대화로 이동해요.</p>';
+    body.innerHTML = html;
+    document.getElementById('cdj_prevBtn').addEventListener('click', function(){
+      var dt = new Date(y, mo-2, 1);
+      chatDateJumpMonth = dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');
+      renderChatDateJumpBody();
+    });
+    document.getElementById('cdj_nextBtn').addEventListener('click', function(){
+      var dt = new Date(y, mo, 1);
+      chatDateJumpMonth = dt.getFullYear()+'-'+String(dt.getMonth()+1).padStart(2,'0');
+      renderChatDateJumpBody();
+    });
+    body.querySelectorAll('[data-cdj-date]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var dateStr = btn.getAttribute('data-cdj-date');
+        closeSheet('chatDateJumpSheet');
+        chatScrollToDate(dateStr);
+      });
+    });
+  }
   function scrollChatToBottom(){
     var wrap = document.querySelector('#chatRoomScreen .side-scroll-wrap');
     if(wrap) wrap.scrollTop = wrap.scrollHeight;
@@ -11031,28 +11274,29 @@
       var roomParts = (chatActiveRoomId||'').split(':');
       otherId = (roomParts[1] === selfId) ? roomParts[2] : roomParts[1];
     }
-    // 단체채팅방(고정)의 "참가자"는 별도 멤버 목록이 없어서, 재직 중인 전체
-    // 직원+관리자(나를 제외)로 간주해요(단체채팅방 자체가 팀 전체에게
-    // 항상 열려있는 구조라서요). 다중채팅방(customGroup)은 방을 만들 때
-    // 정한 memberIds를 그대로 참가자로 써요.
-    var groupParticipantIds = [];
-    if(roomType === 'group'){
-      groupParticipantIds = employees.filter(function(e){ return !e.resignDate && !(e.leaveDate && !e.returnDate); }).map(function(e){ return e.id; });
-      groupParticipantIds.push('__admin__');
-      groupParticipantIds = groupParticipantIds.filter(function(id){ return id !== selfId; });
-    }else if(roomType === 'customGroup'){
-      var roomMeta = chatCustomRooms.find(function(r){ return r.id === chatActiveRoomId; });
-      groupParticipantIds = (roomMeta && roomMeta.memberIds ? roomMeta.memberIds : []).filter(function(id){ return id !== selfId; });
-    }
+    var groupParticipantIds = (roomType === 'group' || roomType === 'customGroup')
+      ? chatRoomParticipantIds(chatActiveRoomId, roomType).filter(function(id){ return id !== selfId; })
+      : [];
     var msgs = chatMessages.filter(function(m){ return m.roomId === chatActiveRoomId; })
       .slice().sort(function(a,b){ return (a.createdAt||'') < (b.createdAt||'') ? -1 : 1; });
     var html = '';
     if(msgs.length === 0){
       html += '<p class="empty-inline">아직 대화가 없어요. 첫 메시지를 보내보세요.</p>';
     }
+    var lastDateKey = null;
+    var query = (chatSearchQuery || '').toLowerCase();
     msgs.forEach(function(m){
+      // 날짜가 바뀌면 그 사이에 날짜 구분선을 넣어요. 구분선을 누르면
+      // 달력으로 다른 날짜의 대화로 바로 이동할 수 있어요.
+      var dateKey = chatMessageDateKey(m);
+      if(dateKey && dateKey !== lastDateKey){
+        html += '<div class="chat-date-divider" data-chat-date-divider="'+dateKey+'" style="text-align:center;margin:14px 0 10px;cursor:pointer;">';
+        html += '<span style="display:inline-block;background:var(--paper-raised);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:12px;color:var(--ink-soft);">📅 '+escapeHtml(chatFormatDateDivider(dateKey))+'</span>';
+        html += '</div>';
+        lastDateKey = dateKey;
+      }
       var mine = m.senderId === selfId;
-      html += '<div class="chat-bubble-row" style="align-items:'+(mine?'flex-end':'flex-start')+';">';
+      html += '<div class="chat-bubble-row" data-chat-msg-id="'+m.id+'" style="align-items:'+(mine?'flex-end':'flex-start')+';">';
       if(!mine && (m.roomType === 'group' || m.roomType === 'customGroup')){
         html += '<span style="font-size:11px;color:var(--ink-faint);margin-bottom:2px;">'+escapeHtml(m.senderName||'')+'</span>';
       }
@@ -11060,7 +11304,7 @@
       if(m.image){
         html += '<img src="'+m.image+'" data-chat-img-view="'+m.id+'" style="max-width:180px;max-height:180px;border-radius:8px;display:block;cursor:pointer;'+(m.content?'margin-bottom:6px;':'')+'">';
       }
-      if(m.content) html += escapeHtml(m.content);
+      if(m.content) html += query ? chatHighlightMatch(m.content, chatSearchQuery) : escapeHtml(m.content);
       html += '</div>';
       html += '<div style="display:flex;gap:8px;align-items:center;margin-top:3px;">';
       if(mine){
@@ -11082,7 +11326,19 @@
         renderChatRoomMessages();
       });
     });
-    scrollChatToBottom();
+    body.querySelectorAll('[data-chat-date-divider]').forEach(function(el){
+      el.addEventListener('click', openChatDateJumpSheet);
+    });
+    var searchCountEl = document.getElementById('chatSearchCount');
+    if(query){
+      var matchIds = msgs.filter(function(m){ return (m.content||'').toLowerCase().indexOf(query) !== -1; }).map(function(m){ return m.id; });
+      if(searchCountEl) searchCountEl.textContent = matchIds.length > 0 ? (matchIds.length + '건 찾음') : '검색 결과 없음';
+      var firstMatchEl = matchIds.length > 0 ? body.querySelector('[data-chat-msg-id="'+matchIds[0]+'"]') : null;
+      if(firstMatchEl) firstMatchEl.scrollIntoView({ block: 'center' }); else scrollChatToBottom();
+    }else{
+      if(searchCountEl) searchCountEl.textContent = '';
+      scrollChatToBottom();
+    }
   }
   function renderChatEmojiRow(){
     var row = document.getElementById('chatEmojiRow');
@@ -13242,6 +13498,30 @@
     document.getElementById('chatRoomBackBtn').addEventListener('click', closeChatRoom);
     document.getElementById('chatRoomRenameBtn').addEventListener('click', openChatRoomNameSheet);
     document.getElementById('chatRoomNameCloseBtn').addEventListener('click', function(){ closeSheet('chatRoomNameSheet'); });
+    document.getElementById('chatRoomMemberCountBtn').addEventListener('click', openChatMembersSheet);
+    document.getElementById('chatMembersCloseBtn').addEventListener('click', function(){ closeSheet('chatMembersSheet'); });
+    document.getElementById('chatDateJumpCloseBtn').addEventListener('click', function(){ closeSheet('chatDateJumpSheet'); });
+    document.getElementById('chatRoomSearchBtn').addEventListener('click', function(){
+      var bar = document.getElementById('chatSearchBar');
+      var opening = bar.style.display === 'none';
+      bar.style.display = opening ? 'flex' : 'none';
+      if(opening){
+        document.getElementById('chatSearchInput').value = '';
+        document.getElementById('chatSearchInput').focus();
+      }else{
+        chatSearchQuery = '';
+        renderChatRoomMessages();
+      }
+    });
+    document.getElementById('chatSearchCloseBtn').addEventListener('click', function(){
+      document.getElementById('chatSearchBar').style.display = 'none';
+      chatSearchQuery = '';
+      renderChatRoomMessages();
+    });
+    document.getElementById('chatSearchInput').addEventListener('input', function(ev){
+      chatSearchQuery = ev.target.value;
+      renderChatRoomMessages();
+    });
     document.getElementById('chatRoomLeaveBtn').addEventListener('click', async function(){
       var btn = document.getElementById('chatRoomLeaveBtn');
       if(!chatLeaveConfirming){
