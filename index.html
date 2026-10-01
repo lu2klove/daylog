@@ -140,14 +140,20 @@
   }
   .assetbtn{
     font-family:'IBM Plex Sans KR',sans-serif;
-    font-size:13px;
+    font-size:17px;
     font-weight:600;
-    padding:9px 14px;
-    border-radius:20px;
+    width:38px;
+    height:38px;
+    padding:0;
+    border-radius:50%;
     border:1px solid var(--line);
     background:var(--paper-raised);
     color:var(--ink);
     cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
   }
 
   .card{
@@ -1080,10 +1086,10 @@
   <div class="header-row">
     <h1 id="appTitle" style="cursor:pointer;">💼 업무일지</h1>
     <div style="display:flex;gap:8px;">
-      <button class="assetbtn" id="statsOpenBtn" type="button">📊 통계</button>
-      <button class="assetbtn" id="chatOpenBtnHeader" type="button"><span class="chat-icon-badge-wrap" id="chatHeaderIconWrap">💬</span> 채팅</button>
-      <button class="assetbtn" id="communityOpenBtn" type="button">🖼️ 커뮤니티</button>
-      <button class="assetbtn" id="hrOpenBtn" type="button">🧑‍💼 인사관리</button>
+      <button class="assetbtn" id="statsOpenBtn" type="button" title="통계" aria-label="통계">📊</button>
+      <button class="assetbtn" id="chatOpenBtnHeader" type="button" title="채팅" aria-label="채팅"><span class="chat-icon-badge-wrap" id="chatHeaderIconWrap">💬</span></button>
+      <button class="assetbtn" id="communityOpenBtn" type="button" title="커뮤니티" aria-label="커뮤니티">🖼️</button>
+      <button class="assetbtn" id="hrOpenBtn" type="button" title="인사관리" aria-label="인사관리">🧑‍💼</button>
     </div>
   </div>
   <p class="subtitle">출장, 경비, 야근, 업무기록을 한 곳에 기록해요</p>
@@ -1163,18 +1169,29 @@
 
 <div class="side-screen" id="statsScreen">
   <div class="side-header">
-    <button class="side-back" id="statsBackBtn" type="button">‹ 뒤로</button>
+    <button class="side-back" id="statsBackBtn" type="button">‹</button>
     <span class="side-title">📊 통계</span>
-    <span style="width:44px;"></span>
+    <button class="side-back" id="incidentStatsBtn" type="button" aria-label="장애통계">🖥️</button>
   </div>
   <div class="side-scroll-wrap">
     <div class="side-body" id="statsBody"></div>
   </div>
 </div>
 
+<div class="side-screen" id="incidentStatsScreen">
+  <div class="side-header">
+    <button class="side-back" id="incidentStatsBackBtn" type="button">‹</button>
+    <span class="side-title">🖥️ 장애통계</span>
+    <span style="width:44px;"></span>
+  </div>
+  <div class="side-scroll-wrap">
+    <div class="side-body" id="incidentStatsBody"></div>
+  </div>
+</div>
+
 <div class="side-screen" id="hrScreen">
   <div class="side-header">
-    <button class="side-back" id="hrBackBtn" type="button">‹ 뒤로</button>
+    <button class="side-back" id="hrBackBtn" type="button">‹</button>
     <span class="side-title">🧑‍💼 인사관리</span>
     <div style="display:flex;gap:6px;">
       <button class="side-back" id="teamDinnerBtn" type="button" aria-label="회식관리">🍻</button>
@@ -1190,7 +1207,7 @@
 
 <div class="side-screen" id="employeeSettingsScreen">
   <div class="side-header">
-    <button class="side-back" id="employeeSettingsBackBtn" type="button">‹ 뒤로</button>
+    <button class="side-back" id="employeeSettingsBackBtn" type="button">‹</button>
     <span class="side-title">👤 직원 관리</span>
     <button class="side-back" id="interviewOpenBtn" type="button" aria-label="면담">💬</button>
   </div>
@@ -1201,7 +1218,7 @@
 
 <div class="side-screen" id="interviewScreen">
   <div class="side-header">
-    <button class="side-back" id="interviewBackBtn" type="button">‹ 뒤로</button>
+    <button class="side-back" id="interviewBackBtn" type="button">‹</button>
     <span class="side-title">💬 면담관리</span>
     <span style="width:44px;"></span>
   </div>
@@ -1220,7 +1237,7 @@
 
 <div class="side-screen" id="surveyScreen">
   <div class="side-header">
-    <button class="side-back" id="surveyBackBtn" type="button">‹ 뒤로</button>
+    <button class="side-back" id="surveyBackBtn" type="button">‹</button>
     <span class="side-title">📊 설문조사</span>
     <span style="width:44px;"></span>
   </div>
@@ -1255,7 +1272,7 @@
 
 <div class="side-screen" id="communityScreen">
   <div class="side-header">
-    <button class="side-back" id="communityBackBtn" type="button">‹ 뒤로</button>
+    <button class="side-back" id="communityBackBtn" type="button">‹</button>
     <span class="side-title">🖼️ 커뮤니티</span>
     <button class="side-back" id="communityViewToggleBtn" type="button" aria-label="보기 전환">🔳</button>
   </div>
@@ -1281,7 +1298,7 @@
 
 <div class="side-screen" id="chatScreen">
   <div class="side-header">
-    <button class="side-back" id="chatBackBtn" type="button">‹ 뒤로</button>
+    <button class="side-back" id="chatBackBtn" type="button">‹</button>
     <span class="side-title">💬 채팅</span>
     <span style="width:44px;"></span>
   </div>
@@ -1298,7 +1315,7 @@
 
 <div class="side-screen" id="chatRoomScreen">
   <div class="side-header">
-    <button class="side-back" id="chatRoomBackBtn" type="button">‹ 뒤로</button>
+    <button class="side-back" id="chatRoomBackBtn" type="button">‹</button>
     <span class="side-title" id="chatRoomTitle">채팅</span>
     <button class="side-back" id="chatRoomLeaveBtn" type="button" style="display:none;">나가기</button>
   </div>
@@ -1320,7 +1337,7 @@
 
 <div class="side-screen" id="employeeOptionsScreen">
   <div class="side-header">
-    <button class="side-back" id="employeeOptionsBackBtn" type="button">‹ 뒤로</button>
+    <button class="side-back" id="employeeOptionsBackBtn" type="button">‹</button>
     <span class="side-title">🗂️ 등록관리</span>
     <span style="width:44px;"></span>
   </div>
@@ -1331,7 +1348,7 @@
 
 <div class="side-screen" id="announcementScreen">
   <div class="side-header">
-    <button class="side-back" id="announcementBackBtn" type="button">‹ 뒤로</button>
+    <button class="side-back" id="announcementBackBtn" type="button">‹</button>
     <span class="side-title">📢 공지사항</span>
     <span style="width:44px;"></span>
   </div>
@@ -1358,7 +1375,7 @@
 
 <div class="side-screen" id="teamDinnerScreen">
   <div class="side-header">
-    <button class="side-back" id="teamDinnerBackBtn" type="button">‹ 뒤로</button>
+    <button class="side-back" id="teamDinnerBackBtn" type="button">‹</button>
     <span class="side-title">🍻 회식관리 (도란도란)</span>
     <button class="side-back" id="teamDinnerSettingsBtn" type="button" aria-label="회식비 설정">⚙️</button>
   </div>
@@ -1393,7 +1410,7 @@
 
 <div class="side-screen" id="evaluationScreen">
   <div class="side-header">
-    <button class="side-back" id="evaluationBackBtn" type="button">‹ 뒤로</button>
+    <button class="side-back" id="evaluationBackBtn" type="button">‹</button>
     <span class="side-title">📋 개인인사평가</span>
     <div style="display:flex;gap:6px;">
       <button class="side-back" id="evalGradeTableBtn" type="button" aria-label="인사평가등급표">🧮</button>
@@ -1407,7 +1424,7 @@
 
 <div class="side-screen" id="evalGradeTableScreen">
   <div class="side-header">
-    <button class="side-back" id="evalGradeTableBackBtn" type="button">‹ 뒤로</button>
+    <button class="side-back" id="evalGradeTableBackBtn" type="button">‹</button>
     <span class="side-title">🧮 인사평가등급표</span>
     <span style="width:44px;"></span>
   </div>
@@ -1418,7 +1435,7 @@
 
 <div class="side-screen" id="taskPerfScreen">
   <div class="side-header">
-    <button class="side-back" id="taskPerfBackBtn" type="button">‹ 뒤로</button>
+    <button class="side-back" id="taskPerfBackBtn" type="button">‹</button>
     <span class="side-title">🎯 과업 실적</span>
     <span style="width:44px;"></span>
   </div>
@@ -11274,7 +11291,7 @@
     datePickerMode = mode || 'calendar';
     var now = new Date();
     var baseDate;
-    if(datePickerMode === 'stats' || datePickerMode === 'statsyear' || datePickerMode === 'hrmonth' || datePickerMode === 'hryear'){
+    if(datePickerMode === 'stats' || datePickerMode === 'statsyear' || datePickerMode === 'hrmonth' || datePickerMode === 'hryear' || datePickerMode === 'incidentstatsmonth' || datePickerMode === 'incidentstatsyear'){
       baseDate = new Date(statsSpecificYear, statsSpecificMonth, 1);
     }else{
       baseDate = new Date(now.getFullYear(), now.getMonth() + calendarOffset, 1);
@@ -11288,7 +11305,7 @@
     var grid = document.getElementById('monthPickerGrid');
     grid.innerHTML = '';
 
-    if(datePickerMode === 'statsyear' || datePickerMode === 'hryear'){
+    if(datePickerMode === 'statsyear' || datePickerMode === 'hryear' || datePickerMode === 'incidentstatsyear'){
       var confirmBtn = document.createElement('button');
       confirmBtn.className = 'savebtn';
       confirmBtn.type = 'button';
@@ -11301,6 +11318,11 @@
           hrPeriodMode = 'specificyear';
           closeSheet('datePickerSheet');
           renderHrScreen();
+        }else if(datePickerMode === 'incidentstatsyear'){
+          incidentStatsPeriodMode = 'specificyear';
+          incidentStatsPage = 1;
+          closeSheet('datePickerSheet');
+          renderIncidentStatsScreen();
         }else{
           statsPeriodMode = 'specificyear';
           statsPage = 1;
@@ -11322,7 +11344,7 @@
       var isDisabledCell = isFuture || isTooOld;
       var cls = ['month-cell'];
       if(isDisabledCell) cls.push('future');
-      var isActiveYear = (datePickerMode === 'stats' || datePickerMode === 'hrmonth')
+      var isActiveYear = (datePickerMode === 'stats' || datePickerMode === 'hrmonth' || datePickerMode === 'incidentstatsmonth')
         ? (pickerYear === statsSpecificYear)
         : (pickerYear === (new Date(now.getFullYear(), now.getMonth()+calendarOffset,1)).getFullYear());
       if(activeMonth === m && isActiveYear) cls.push('active');
@@ -11344,6 +11366,13 @@
               hrPeriodMode = 'specificmonth';
               closeSheet('datePickerSheet');
               renderHrScreen();
+            }else if(datePickerMode === 'incidentstatsmonth'){
+              statsSpecificYear = pickerYear;
+              statsSpecificMonth = mm;
+              incidentStatsPeriodMode = 'specificmonth';
+              incidentStatsPage = 1;
+              closeSheet('datePickerSheet');
+              renderIncidentStatsScreen();
             }else{
               calendarOffset = (pickerYear - now.getFullYear())*12 + (mm - now.getMonth());
               selectedDate = null;
@@ -11525,6 +11554,15 @@
   var statsWelfareTypeFilter = '';
   var statsConfirmDeleteId = null;
   var STATS_PAGE_SIZE = 7;
+  // 장애통계(통계 화면 우측 상단에서 들어가는 별도 화면) 전용 상태예요. 기간은
+  // 기존 통계 화면과 같은 선택지를 쓰지만(statsSpecificYear/Month도 그대로
+  // 재사용— hr통계와 똑같은 기존 관례), 유형/등급/상태 3가지 필터는 장애
+  // 데이터만의 것이라 별도 변수로 둬요.
+  var incidentStatsPeriodMode = 'all';
+  var incidentStatsTypeFilter = '';
+  var incidentStatsGradeFilter = '';
+  var incidentStatsStatusFilter = '';
+  var incidentStatsPage = 1;
 
   function pad2(n){ return String(n).padStart(2,'0'); }
   function dstr(dt){ return dt.getFullYear()+'-'+pad2(dt.getMonth()+1)+'-'+pad2(dt.getDate()); }
@@ -12234,8 +12272,263 @@
     }
   }
 
+  // ---------- 장애통계 ----------
+  // opts로 skipTypeFilter/skipGradeFilter/skipStatusFilter를 주면 그 축만
+  // 필터를 빼고 계산해요. 그래프 3개(유형별/등급별/상태별)가 "자기 축은 전체를
+  // 보여주되 다른 두 축+기간은 그대로 반영"하는 식으로 동작하게 하려고
+  // 그래프마다 자기 축만 빼고 호출해요(통계 화면의 "유형별 합계" 그래프가
+  // 현재 선택된 유형 필터와 무관하게 항상 전체를 보여주는 것과 같은 방식이에요).
+  function incidentStatsFilteredEntries(opts){
+    opts = opts || {};
+    var range = getPeriodRange(incidentStatsPeriodMode);
+    return entries.filter(function(e){
+      if(e.type !== 'incident') return false;
+      if(range && (e.date < range.start || e.date > range.end)) return false;
+      if(!opts.skipTypeFilter && incidentStatsTypeFilter && e.failureType !== incidentStatsTypeFilter) return false;
+      if(!opts.skipGradeFilter && incidentStatsGradeFilter && e.failureGrade !== incidentStatsGradeFilter) return false;
+      if(!opts.skipStatusFilter && incidentStatsStatusFilter && (e.status||'접수') !== incidentStatsStatusFilter) return false;
+      return true;
+    });
+  }
+  // 특정 축(장애유형/장애등급/장애상태) 기준으로 건수를 세어 막대그래프
+  // 행들을 만들어요. 건수가 0인 항목은(관련 기록이 아예 없으면) 생략해요.
+  function incidentStatsBarRowsHTML(dimEntries, categories, getCategory, colorFn, iconFn){
+    var counts = {};
+    categories.forEach(function(c){ counts[c] = 0; });
+    dimEntries.forEach(function(e){
+      var cat = getCategory(e);
+      if(cat && counts.hasOwnProperty(cat)) counts[cat]++;
+    });
+    var maxCount = Math.max.apply(null, categories.map(function(c){ return counts[c]; }).concat([1]));
+    var html = '';
+    categories.forEach(function(c){
+      var cnt = counts[c];
+      if(cnt === 0) return;
+      var pct = Math.round((cnt / maxCount) * 100);
+      html += '<div class="stat-bar-row">';
+      html += '<div class="stat-bar-label"><span>'+(iconFn?iconFn(c)+' ':'')+escapeHtml(c)+' · '+cnt+'건</span><span style="font-family:\'IBM Plex Mono\',monospace;font-weight:700;">'+pct+'%</span></div>';
+      html += '<div class="stat-bar-track"><div class="stat-bar-fill" style="width:'+pct+'%;background:'+colorFn(c)+';"></div></div>';
+      html += '</div>';
+    });
+    if(html === ''){
+      html = '<p class="empty-inline" style="margin-bottom:14px;">해당 조건에 기록이 없어요.</p>';
+    }
+    return html;
+  }
+  function incidentStatsGraphHTML(){
+    var html = '';
+    html += '<p class="card-title no-divider">🖥️ 장애유형별</p>';
+    html += incidentStatsBarRowsHTML(
+      incidentStatsFilteredEntries({ skipTypeFilter:true }),
+      FAILURE_TYPES,
+      function(e){ return e.failureType; },
+      function(){ return 'var(--blue)'; }
+    );
+    html += '<p class="card-title">🎚️ 장애등급별</p>';
+    html += incidentStatsBarRowsHTML(
+      incidentStatsFilteredEntries({ skipGradeFilter:true }),
+      FAILURE_GRADES,
+      function(e){ return e.failureGrade; },
+      function(){ return 'var(--olive)'; }
+    );
+    html += '<p class="card-title">🚦 장애상태별</p>';
+    html += incidentStatsBarRowsHTML(
+      incidentStatsFilteredEntries({ skipStatusFilter:true }),
+      INCIDENT_STATUSES,
+      function(e){ return e.status||'접수'; },
+      function(s){ return (INCIDENT_STATUS_META[s]||{}).color || 'var(--ink-soft)'; },
+      function(s){ return (INCIDENT_STATUS_META[s]||{}).icon || ''; }
+    );
+    return html;
+  }
+  function renderIncidentStatsList(filtered){
+    var wrap = document.getElementById('incidentStatsListWrap');
+    if(!wrap) return;
+    var sorted = filtered.slice().sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+    var totalPages = Math.max(1, Math.ceil(sorted.length / STATS_PAGE_SIZE));
+    if(incidentStatsPage > totalPages) incidentStatsPage = totalPages;
+    if(incidentStatsPage < 1) incidentStatsPage = 1;
+    var startIdx = (incidentStatsPage-1)*STATS_PAGE_SIZE;
+    var pageItems = sorted.slice(startIdx, startIdx+STATS_PAGE_SIZE);
+
+    var html = '';
+    if(pageItems.length === 0){
+      html += '<p class="empty-inline">해당 조건에 장애내역이 없어요.</p>';
+    }else{
+      pageItems.forEach(function(e){
+        var statusMeta = INCIDENT_STATUS_META[e.status||'접수'] || INCIDENT_STATUS_META['접수'];
+        html += '<div class="record-item">';
+        html += '<div class="record-top">';
+        html += '<span class="record-badge incident">🖥️ 장애</span>';
+        html += '<span style="font-size:12.5px;font-weight:700;color:'+statusMeta.color+';">'+statusMeta.icon+' '+escapeHtml(e.status||'접수')+'</span>';
+        html += '</div>';
+        html += '<p class="record-sub">'+niceDate(e.date)+' · '+escapeHtml(e.failureType||'유형 미지정')+(e.failureGrade?(' · '+escapeHtml(e.failureGrade)):'')+'</p>';
+        if(e.failureSymptom) html += '<p class="record-sub" style="margin-top:2px;">'+escapeHtml(e.failureSymptom.slice(0,60))+'</p>';
+        html += '<div class="record-actions" style="margin-top:8px;">';
+        html += '<button class="cancelbtn" data-incstats-open="'+e.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">📋 상세보기 · 조치이력</button>';
+        html += '</div>';
+        html += '</div>';
+      });
+    }
+    if(totalPages > 1){
+      var groupStart = getPageGroupStart(incidentStatsPage);
+      var groupEnd = Math.min(groupStart+4, totalPages);
+      html += '<div class="pager">';
+      if(groupStart > 1) html += '<button class="pagebtn" data-incstats-goto="'+(groupStart-1)+'" type="button">‹</button>';
+      for(var p=groupStart; p<=groupEnd; p++){
+        html += '<button class="pagebtn'+(p===incidentStatsPage?' active':'')+'" data-incstats-page="'+p+'" type="button">'+p+'</button>';
+      }
+      if(groupEnd < totalPages) html += '<button class="pagebtn" data-incstats-goto="'+(groupEnd+1)+'" type="button">›</button>';
+      html += '</div>';
+    }
+    wrap.innerHTML = html;
+
+    wrap.querySelectorAll('[data-incstats-page]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        incidentStatsPage = parseInt(btn.getAttribute('data-incstats-page'),10);
+        renderIncidentStatsList(filtered);
+      });
+    });
+    wrap.querySelectorAll('[data-incstats-goto]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        incidentStatsPage = parseInt(btn.getAttribute('data-incstats-goto'),10);
+        renderIncidentStatsList(filtered);
+      });
+    });
+    wrap.querySelectorAll('[data-incstats-open]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = btn.getAttribute('data-incstats-open');
+        var e = entries.find(function(x){ return x.id === id; });
+        if(!e) return;
+        editingHistoryEntryId = null;
+        historyDeleteConfirmingId = null;
+        openIncidentForm(e);
+      });
+    });
+  }
+  function renderIncidentStatsScreen(){
+    var body = document.getElementById('incidentStatsBody');
+    if(!body) return;
+    var html = '';
+
+    html += '<p class="field-label field-label-strong">📅 기간</p>';
+    html += '<div class="chiprow" id="incStatsPeriodChips" style="margin-bottom:16px;">';
+    var incStatsPeriodChipOptions = [['all','전체'],['week','이번주'],['lastweek','전주'],['month','이번달'],['quarter','분기'],['half','반기']];
+    incStatsPeriodChipOptions.forEach(function(p){
+      html += '<button class="chip'+(incidentStatsPeriodMode===p[0]?' selected':'')+'" data-val="'+p[0]+'" type="button">'+p[1]+'</button>';
+    });
+    var incMonthPickLabel = (incidentStatsPeriodMode === 'specificmonth') ? ('📅 '+statsSpecificYear+'년 '+(statsSpecificMonth+1)+'월') : '📅 월 선택';
+    html += '<button class="chip'+(incidentStatsPeriodMode==='specificmonth'?' selected':'')+'" id="incStatsMonthPickBtn" type="button">'+incMonthPickLabel+'</button>';
+    var incYearPickLabel = (incidentStatsPeriodMode === 'specificyear') ? ('📅 '+statsSpecificYear+'년') : '📅 연도 선택';
+    html += '<button class="chip'+(incidentStatsPeriodMode==='specificyear'?' selected':'')+'" id="incStatsYearPickBtn" type="button">'+incYearPickLabel+'</button>';
+    html += '</div>';
+
+    html += '<p class="field-label field-label-strong">🏷️ 유형</p>';
+    html += '<p class="field-label" style="margin:10px 0 6px;">장애유형</p>';
+    html += '<div class="chiprow" id="incStatsTypeChips" style="margin-bottom:12px;">';
+    html += '<button class="chip'+(incidentStatsTypeFilter===''?' selected':'')+'" data-val="" type="button">전체</button>';
+    FAILURE_TYPES.forEach(function(t){
+      html += '<button class="chip'+(incidentStatsTypeFilter===t?' selected':'')+'" data-val="'+escapeHtml(t)+'" type="button">'+escapeHtml(t)+'</button>';
+    });
+    html += '</div>';
+
+    html += '<p class="field-label" style="margin:10px 0 6px;">장애등급</p>';
+    html += '<div class="chiprow" id="incStatsGradeChips" style="margin-bottom:12px;">';
+    html += '<button class="chip'+(incidentStatsGradeFilter===''?' selected':'')+'" data-val="" type="button">전체</button>';
+    FAILURE_GRADES.forEach(function(g){
+      html += '<button class="chip'+(incidentStatsGradeFilter===g?' selected':'')+'" data-val="'+escapeHtml(g)+'" type="button">'+escapeHtml(g)+'</button>';
+    });
+    html += '</div>';
+
+    html += '<p class="field-label" style="margin:10px 0 6px;">장애상태</p>';
+    html += '<div class="chiprow" id="incStatsStatusChips" style="margin-bottom:16px;">';
+    html += '<button class="chip'+(incidentStatsStatusFilter===''?' selected':'')+'" data-val="" type="button">전체</button>';
+    INCIDENT_STATUSES.forEach(function(s){
+      html += '<button class="chip'+(incidentStatsStatusFilter===s?' selected':'')+'" data-val="'+s+'" type="button">'+INCIDENT_STATUS_META[s].icon+' '+s+'</button>';
+    });
+    html += '</div>';
+
+    // "유형" 섹션 아래 구분선, 그 아래에 그래프
+    html += '<div style="border-top:1px solid var(--line);padding-top:16px;">';
+    html += incidentStatsGraphHTML();
+    html += '</div>';
+
+    // 그래프 아래 구분선, 그 아래에 목록
+    var filteredIncidents = incidentStatsFilteredEntries();
+    html += '<div style="border-top:1px solid var(--line);margin-top:4px;padding-top:16px;">';
+    html += '<p class="card-title no-divider">목록 ('+filteredIncidents.length+'건)</p>';
+    html += '<div id="incidentStatsListWrap"></div>';
+    html += '</div>';
+
+    body.innerHTML = html;
+    renderIncidentStatsList(filteredIncidents);
+
+    document.querySelectorAll('#incStatsPeriodChips .chip[data-val]').forEach(function(c){
+      c.addEventListener('click', function(){
+        incidentStatsPeriodMode = c.getAttribute('data-val');
+        incidentStatsPage = 1;
+        renderIncidentStatsScreen();
+      });
+    });
+    var incStatsMonthPickBtnEl = document.getElementById('incStatsMonthPickBtn');
+    if(incStatsMonthPickBtnEl) incStatsMonthPickBtnEl.addEventListener('click', function(){
+      openDatePicker('incidentstatsmonth');
+    });
+    var incStatsYearPickBtnEl = document.getElementById('incStatsYearPickBtn');
+    if(incStatsYearPickBtnEl) incStatsYearPickBtnEl.addEventListener('click', function(){
+      openDatePicker('incidentstatsyear');
+    });
+    document.querySelectorAll('#incStatsTypeChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        incidentStatsTypeFilter = c.getAttribute('data-val');
+        incidentStatsPage = 1;
+        renderIncidentStatsScreen();
+      });
+    });
+    document.querySelectorAll('#incStatsGradeChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        incidentStatsGradeFilter = c.getAttribute('data-val');
+        incidentStatsPage = 1;
+        renderIncidentStatsScreen();
+      });
+    });
+    document.querySelectorAll('#incStatsStatusChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        incidentStatsStatusFilter = c.getAttribute('data-val');
+        incidentStatsPage = 1;
+        renderIncidentStatsScreen();
+      });
+    });
+  }
+
   var monthTypeConfirmDeleteId = null;
   var currentMonthTypeSheetType = null;
+  // 경비 목록 "한 건"의 카드 HTML이에요. 유형별 그룹핑(아래)과 그룹 없는 기존
+  // 목록(경비 외 다른 유형들)이 똑같은 카드 모양을 쓰도록 공통 함수로 뺐어요.
+  function monthTypeRecordItemHTML(e, meta){
+    var html = '';
+    html += '<div class="record-item">';
+    html += '<div class="record-top">';
+    html += '<span class="record-badge '+e.type+'">'+meta.icon+' '+meta.label+'</span>';
+    if(e.type !== 'task' && e.type !== 'attendance'){
+      html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
+    }
+    html += '</div>';
+    html += '<p class="record-sub">'+niceDate(e.date)+' · '+recordSummary(e)+'</p>';
+    var isConfirming = monthTypeConfirmDeleteId === e.id;
+    html += '<div class="record-actions" style="margin-top:8px;">';
+    if(isConfirming){
+      html += '<span style="font-size:12.5px;color:var(--brick);">정말 삭제할까요?</span>';
+      html += '<button class="danger" data-mt-confirmdel="'+e.id+'" type="button">삭제</button>';
+      html += '<button class="cancelbtn" data-mt-canceldel="'+e.id+'" type="button" style="padding:6px 12px;font-size:12.5px;">취소</button>';
+    }else{
+      html += '<button class="cancelbtn" data-mt-edit="'+e.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">수정</button>';
+      html += '<button class="danger" data-mt-askdel="'+e.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">삭제</button>';
+    }
+    html += '</div>';
+    html += '</div>';
+    return html;
+  }
   function renderMonthTypeSheet(type){
     currentMonthTypeSheetType = type;
     var range = currentDisplayedMonthRange();
@@ -12250,29 +12543,33 @@
     var html = '';
     if(list.length === 0){
       html += '<p class="empty-inline">이번 달 기록이 없어요.</p>';
-    }else{
+    }else if(type === 'expense'){
+      // 경비는 "유형"(요식비/도란(EX)/도란(OTI)/출장경비/행사비/체재비 등,
+      // 설정 > 경비 설정에서 관리)별로 묶어서 보여줘요. 설정에 등록된 순서를
+      // 그대로 따르고, 유형이 비어있거나(예전 기록) 이미 삭제된 유형이면
+      // 맨 뒤에 "미지정" 그룹으로 모아요.
+      var groupsByType = {};
       list.forEach(function(e){
-        html += '<div class="record-item">';
-        html += '<div class="record-top">';
-        html += '<span class="record-badge '+e.type+'">'+meta.icon+' '+meta.label+'</span>';
-        if(e.type !== 'task' && e.type !== 'attendance'){
-          html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
-        }
-        html += '</div>';
-        html += '<p class="record-sub">'+niceDate(e.date)+' · '+recordSummary(e)+'</p>';
-        var isConfirming = monthTypeConfirmDeleteId === e.id;
-        html += '<div class="record-actions" style="margin-top:8px;">';
-        if(isConfirming){
-          html += '<span style="font-size:12.5px;color:var(--brick);">정말 삭제할까요?</span>';
-          html += '<button class="danger" data-mt-confirmdel="'+e.id+'" type="button">삭제</button>';
-          html += '<button class="cancelbtn" data-mt-canceldel="'+e.id+'" type="button" style="padding:6px 12px;font-size:12.5px;">취소</button>';
-        }else{
-          html += '<button class="cancelbtn" data-mt-edit="'+e.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">수정</button>';
-          html += '<button class="danger" data-mt-askdel="'+e.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">삭제</button>';
-        }
-        html += '</div>';
+        var key = (e.expenseType && expenseTypes.some(function(t){ return t.name === e.expenseType; })) ? e.expenseType : '';
+        if(!groupsByType[key]) groupsByType[key] = [];
+        groupsByType[key].push(e);
+      });
+      var orderedTypeNames = expenseTypes.map(function(t){ return t.name; });
+      if(groupsByType[''] && groupsByType[''].length > 0) orderedTypeNames = orderedTypeNames.concat(['']);
+      orderedTypeNames.forEach(function(typeName, gi){
+        var group = groupsByType[typeName];
+        if(!group || group.length === 0) return;
+        var groupTotal = group.reduce(function(sum, e){ return sum + recordAmount(e); }, 0);
+        html += '<div style="'+(gi>0?'border-top:1px solid var(--line);margin-top:16px;padding-top:14px;':'')+'">';
+        html += '<p class="field-label field-label-strong" style="margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline;">';
+        html += '<span>📁 '+(typeName ? escapeHtml(typeName) : '미지정') +' ('+group.length+'건)</span>';
+        html += '<span style="font-weight:700;">'+formatWon(groupTotal)+'원</span>';
+        html += '</p>';
+        group.forEach(function(e){ html += monthTypeRecordItemHTML(e, meta); });
         html += '</div>';
       });
+    }else{
+      list.forEach(function(e){ html += monthTypeRecordItemHTML(e, meta); });
     }
     body.innerHTML = html;
 
@@ -12601,6 +12898,18 @@
     document.getElementById('statsBackBtn').addEventListener('click', function(){
       document.getElementById('statsScreen').classList.remove('open');
     });
+    document.getElementById('incidentStatsBtn').addEventListener('click', function(){
+      incidentStatsPeriodMode = 'all';
+      incidentStatsTypeFilter = '';
+      incidentStatsGradeFilter = '';
+      incidentStatsStatusFilter = '';
+      incidentStatsPage = 1;
+      renderIncidentStatsScreen();
+      document.getElementById('incidentStatsScreen').classList.add('open');
+    });
+    document.getElementById('incidentStatsBackBtn').addEventListener('click', function(){
+      document.getElementById('incidentStatsScreen').classList.remove('open');
+    });
     document.getElementById('hrOpenBtn').addEventListener('click', function(){
       hrPeriodMode = 'month';
       hrTypeMode = 'all';
@@ -12881,6 +13190,11 @@
     if(hrBtn) hrBtn.style.display = admin ? '' : 'none';
     var statsRow = document.querySelector('.statsrow-top');
     if(statsRow) statsRow.style.display = admin ? '' : 'none';
+    // 장애통계는 전 직원의 장애내역을 모아 보는 관리자용 화면이라, 통계
+    // 화면은 일반 직원도 열 수 있지만(본인 업무/근무기록만) 그 안의
+    // 장애통계 버튼은 관리자에게만 보여요.
+    var incidentStatsBtn = document.getElementById('incidentStatsBtn');
+    if(incidentStatsBtn) incidentStatsBtn.style.display = admin ? '' : 'none';
     // 일반 직원 로그인 시에는 출장/경비/야근/복지비 통계 대신, 달력 년/월 구분선
     // 위쪽에 커뮤니티·건의함 버튼을 나란히 보여줘요(건의함은 관리자가 등록할 이유가
     // 없어서 관리자 화면에는 표시하지 않아요 — 관리자는 면담화면 하단에서 조회만
