@@ -810,6 +810,23 @@
     color:var(--ink);
     cursor:pointer;
   }
+  .side-icon-circle{
+    font-family:'IBM Plex Sans KR',sans-serif;
+    font-size:17px;
+    font-weight:600;
+    width:38px;
+    height:38px;
+    padding:0;
+    border-radius:50%;
+    border:1px solid var(--line);
+    background:var(--paper-raised);
+    color:var(--ink);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+  }
   .side-title{ font-weight:700; font-size:15px; }
   .side-body{
     padding:calc(76px + env(safe-area-inset-top)) 16px 16px;
@@ -1171,7 +1188,7 @@
   <div class="side-header">
     <button class="side-back" id="statsBackBtn" type="button">‹</button>
     <span class="side-title">📊 통계</span>
-    <button class="side-back" id="incidentStatsBtn" type="button" aria-label="장애통계">🖥️</button>
+    <button class="side-icon-circle" id="incidentStatsBtn" type="button" aria-label="장애통계">🖥️</button>
   </div>
   <div class="side-scroll-wrap">
     <div class="side-body" id="statsBody"></div>
@@ -1194,10 +1211,10 @@
     <button class="side-back" id="hrBackBtn" type="button">‹</button>
     <span class="side-title">🧑‍💼 인사관리</span>
     <div style="display:flex;gap:6px;">
-      <button class="side-back" id="teamDinnerBtn" type="button" aria-label="회식관리">🍻</button>
-      <button class="side-back" id="hrSettingsBtn" type="button" aria-label="직원 관리">⚙️</button>
-      <button class="side-back" id="hrEvalBtn" type="button" aria-label="인사평가">📋</button>
-      <button class="side-back" id="surveyOpenBtn" type="button" aria-label="설문조사">📊</button>
+      <button class="side-icon-circle" id="teamDinnerBtn" type="button" aria-label="회식관리">🍻</button>
+      <button class="side-icon-circle" id="hrSettingsBtn" type="button" aria-label="직원 관리">⚙️</button>
+      <button class="side-icon-circle" id="hrEvalBtn" type="button" aria-label="인사평가">📋</button>
+      <button class="side-icon-circle" id="surveyOpenBtn" type="button" aria-label="설문조사">📊</button>
     </div>
   </div>
   <div class="side-scroll-wrap">
@@ -1209,7 +1226,7 @@
   <div class="side-header">
     <button class="side-back" id="employeeSettingsBackBtn" type="button">‹</button>
     <span class="side-title">👤 직원 관리</span>
-    <button class="side-back" id="interviewOpenBtn" type="button" aria-label="면담">💬</button>
+    <button class="side-icon-circle" id="interviewOpenBtn" type="button" aria-label="면담">💬</button>
   </div>
   <div class="side-scroll-wrap">
     <div class="side-body" id="employeeSettingsBody"></div>
@@ -1317,7 +1334,10 @@
   <div class="side-header">
     <button class="side-back" id="chatRoomBackBtn" type="button">‹</button>
     <span class="side-title" id="chatRoomTitle">채팅</span>
-    <button class="side-back" id="chatRoomLeaveBtn" type="button" style="display:none;">나가기</button>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <button class="side-icon-circle" id="chatRoomRenameBtn" type="button" aria-label="채팅방 이름 변경" style="display:none;">✏️</button>
+      <button class="side-back" id="chatRoomLeaveBtn" type="button" style="display:none;">나가기</button>
+    </div>
   </div>
   <div class="side-scroll-wrap">
     <div class="side-body" style="padding-bottom:190px;">
@@ -1333,6 +1353,14 @@
       <button class="savebtn" id="chatSendBtn" type="button" style="padding:10px 16px;flex-shrink:0;">전송</button>
     </div>
   </div>
+</div>
+
+<div class="bottom-sheet" id="chatRoomNameSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">✏️ 채팅방 이름</span>
+    <button class="sheet-close" id="chatRoomNameCloseBtn" type="button">✕</button>
+  </div>
+  <div id="chatRoomNameBody"></div>
 </div>
 
 <div class="side-screen" id="employeeOptionsScreen">
@@ -1413,8 +1441,8 @@
     <button class="side-back" id="evaluationBackBtn" type="button">‹</button>
     <span class="side-title">📋 개인인사평가</span>
     <div style="display:flex;gap:6px;">
-      <button class="side-back" id="evalGradeTableBtn" type="button" aria-label="인사평가등급표">🧮</button>
-      <button class="side-back" id="taskPerfBtn" type="button" aria-label="과업 실적">🎯</button>
+      <button class="side-icon-circle" id="evalGradeTableBtn" type="button" aria-label="인사평가등급표">🧮</button>
+      <button class="side-icon-circle" id="taskPerfBtn" type="button" aria-label="과업 실적">🎯</button>
     </div>
   </div>
   <div class="side-scroll-wrap">
@@ -2233,6 +2261,7 @@
       // 사람(직원)이 바뀌었을 수 있으니 새로 불러온 뒤에 배지를 계산해요.
       chatMessages = await loadChatMessages();
       chatReads = await loadChatReads();
+      chatCustomRooms = await loadChatRooms();
       applyRoleUI();
       renderCalendar();
       renderDayDetail();
@@ -10478,8 +10507,9 @@
   var CHAT_POLL_MS = 3000;
   var chatMessages = []; // [{id, employeeId, roomId, roomType, senderId, senderName, recipientId, content, image, createdAt, updatedAt}]
   var chatReads = []; // [{id, employeeId, roomId, readerId, lastReadAt}]
+  var chatCustomRooms = []; // [{id, employeeId, memberIds:[...], name, createdBy, createdAt, updatedAt}] — 다중(그룹) 채팅방
   var chatActiveTab = 'rooms'; // 'rooms' | 'employees'
-  var chatSelectedEmployeeId = null;
+  var chatSelectedEmployeeIds = []; // 직원 목록에서 다중 선택한 채팅 대상(1명이면 1:1, 2명 이상이면 다중채팅)
   var chatActiveRoomId = null;
   var chatLeaveConfirming = false;
   var chatPollTimer = null;
@@ -10489,6 +10519,27 @@
   function chatRoomIdForDirect(a, b){
     var pair = [a, b].sort();
     return 'dm:' + pair[0] + ':' + pair[1];
+  }
+  // 다중(그룹) 채팅방 id는 참가자 구성으로만 정해져요(1:1의 dm: 규칙과 동일한
+  // 발상) — 같은 조합의 사람들을 다시 선택해 "채팅하기"를 누르면 새 방을 또
+  // 만들지 않고 기존 방을 그대로 열어요.
+  function chatGroupMemberKey(ids){
+    return ids.slice().sort().join(',');
+  }
+  function chatRoomIdForGroupMembers(ids){
+    return 'grp:' + chatGroupMemberKey(ids);
+  }
+  // 다중채팅방 이름이 따로 등록돼 있지 않으면, 나를 뺀 참가자 이름을 나열해서
+  // 보여줘요.
+  function chatCustomGroupDisplayName(meta, selfId){
+    if(!meta) return '다중채팅방';
+    if(meta.name && meta.name.trim()) return meta.name.trim();
+    var names = (meta.memberIds || []).filter(function(id){ return id !== selfId; }).map(function(id){
+      if(id === '__admin__') return '관리자';
+      var emp = employees.find(function(e){ return e.id === id; });
+      return emp ? emp.name : '(알 수 없음)';
+    });
+    return names.join(', ') || '다중채팅방';
   }
 
   function chatMessageRowToObject(row){
@@ -10583,6 +10634,45 @@
     }catch(e){ reportSyncError('채팅 읽음 표시', e); return false; }
   }
 
+  // 다중(그룹) 채팅방 정보(참가자 목록/이름)를 저장하는 테이블이에요. 메시지가
+  // 하나도 없어도 방 자체는 존재해야(초대받은 사람 목록에 바로 보이도록)
+  // chat_messages와 별도로 둬요.
+  function chatRoomRowToObject(row){
+    return Object.assign({ id: row.id, employeeId: row.employee_id, createdAt: row.created_at, updatedAt: row.updated_at }, row.data || {});
+  }
+  function chatRoomObjectToRow(obj, userId){
+    var rest = Object.assign({}, obj);
+    delete rest.id; delete rest.employeeId; delete rest.createdAt; delete rest.updatedAt;
+    return {
+      id: obj.id,
+      user_id: userId,
+      employee_id: obj.employeeId || null,
+      data: rest,
+      updated_at: obj.updatedAt || new Date().toISOString()
+    };
+  }
+  async function loadChatRooms(){
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid) return [];
+      var res = await supabaseClient.from('chat_rooms').select('*').eq('user_id', uid);
+      if(res.error){ reportSyncError('채팅방 정보 불러오기', res.error); return []; }
+      return res.data.map(chatRoomRowToObject);
+    }catch(e){ reportSyncError('채팅방 정보 불러오기', e); return []; }
+  }
+  async function upsertChatRoom(obj){
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid){ reportSyncError('채팅방 저장', '로그인 세션을 찾을 수 없어요'); return false; }
+      var row = chatRoomObjectToRow(obj, uid);
+      var res = await supabaseClient.from('chat_rooms').upsert([row], { onConflict: 'id' });
+      if(res.error){ reportSyncError('채팅방 저장', res.error); return false; }
+      var idx = chatCustomRooms.findIndex(function(r){ return r.id === obj.id; });
+      if(idx >= 0) chatCustomRooms[idx] = obj; else chatCustomRooms.push(obj);
+      return true;
+    }catch(e){ reportSyncError('채팅방 저장', e); return false; }
+  }
+
   async function sendChatMessage(roomId, roomType, recipientId, content, image){
     var now = new Date().toISOString();
     var payload = {
@@ -10627,8 +10717,8 @@
     var selfId = chatSelfId();
     var byRoom = {};
     chatMessages.forEach(function(m){
-      if(m.roomType === 'group'){
-        if(!byRoom[m.roomId]) byRoom[m.roomId] = { roomId: m.roomId, roomType: 'group', otherId: null, messages: [] };
+      if(m.roomType === 'group' || m.roomType === 'customGroup'){
+        if(!byRoom[m.roomId]) byRoom[m.roomId] = { roomId: m.roomId, roomType: m.roomType, otherId: null, messages: [] };
         byRoom[m.roomId].messages.push(m);
       }else if(m.roomType === 'direct'){
         if(m.senderId !== selfId && m.recipientId !== selfId) return;
@@ -10637,7 +10727,21 @@
       }
     });
     if(!byRoom[CHAT_GROUP_ROOM_ID]) byRoom[CHAT_GROUP_ROOM_ID] = { roomId: CHAT_GROUP_ROOM_ID, roomType: 'group', otherId: null, messages: [] };
+    // 내가 멤버인 다중채팅방은 메시지가 아직 하나도 없어도(막 초대만 된
+    // 상태라도) 목록에 보여야 해요.
+    chatCustomRooms.forEach(function(r){
+      if(r.memberIds && r.memberIds.indexOf(selfId) !== -1 && !byRoom[r.id]){
+        byRoom[r.id] = { roomId: r.id, roomType: 'customGroup', otherId: null, messages: [] };
+      }
+    });
     var rooms = Object.keys(byRoom).map(function(k){ return byRoom[k]; });
+    // 내가 더 이상 멤버가 아닌 다중채팅방(메시지는 남아있지만 방 정보 기준
+    // 멤버에서 빠진 경우)은 목록에서 제외해요.
+    rooms = rooms.filter(function(r){
+      if(r.roomType !== 'customGroup') return true;
+      var meta = chatCustomRooms.find(function(x){ return x.id === r.roomId; });
+      return !!(meta && meta.memberIds && meta.memberIds.indexOf(selfId) !== -1);
+    });
     rooms.forEach(function(r){
       r.messages.sort(function(a,b){ return (a.createdAt||'') < (b.createdAt||'') ? -1 : 1; });
       var last = r.messages[r.messages.length-1];
@@ -10646,6 +10750,10 @@
       if(r.roomType === 'direct'){
         var otherEmp = employees.find(function(e){ return e.id === r.otherId; });
         r.otherName = r.otherId === '__admin__' ? '관리자' : (otherEmp ? otherEmp.name : '(알 수 없음)');
+      }else if(r.roomType === 'customGroup'){
+        var meta = chatCustomRooms.find(function(x){ return x.id === r.roomId; });
+        r.memberIds = meta ? meta.memberIds : [selfId];
+        r.otherName = chatCustomGroupDisplayName(meta, selfId);
       }else{
         r.otherName = '단체채팅방';
       }
@@ -10695,6 +10803,7 @@
     chatPollTimer = setInterval(async function(){
       chatMessages = await loadChatMessages();
       chatReads = await loadChatReads();
+      chatCustomRooms = await loadChatRooms();
       if(document.getElementById('chatRoomScreen').classList.contains('open')){
         renderChatRoomMessages();
       }
@@ -10723,17 +10832,21 @@
       html += '<p class="empty-inline">채팅할 수 있는 다른 직원이 없어요.</p>';
     }else{
       list.forEach(function(e){
-        var selected = chatSelectedEmployeeId === e.id;
+        var selected = chatSelectedEmployeeIds.indexOf(e.id) !== -1;
         html += '<div class="rule-card" data-chat-emp="'+e.id+'" style="margin-bottom:8px;cursor:pointer;'+(selected?'border-color:var(--pine);':'')+'">';
         // 대부분의 직원은 "일반" 권한이라 매번 표시하면 의미 없는 잡음이 되고,
         // 직원 정보를 한 번도 저장한 적 없어 role 값이 비어있는 직원과 저장한
         // 적 있어 '일반'이 채워진 직원 사이에 표시가 들쭉날쭉해지는 문제가
         // 있었어요. 채팅 상대를 고를 때 실제로 유용한 정보인 "관리자" 여부만
-        // 표시해요.
-        html += '<span>👤 '+escapeHtml(e.name)+(e.role==='관리자'?' · 관리자':'')+'</span>';
+        // 표시해요. 여러 명을 함께 선택할 수 있어서(다중채팅), 선택된 사람은
+        // 체크 표시로 구분해요.
+        html += '<span>'+(selected?'✅':'👤')+' '+escapeHtml(e.name)+(e.role==='관리자'?' · 관리자':'')+'</span>';
         html += '</div>';
       });
-      html += '<button class="savebtn" id="chatStartBtn" type="button" style="width:100%;margin-top:6px;"'+(chatSelectedEmployeeId?'':' disabled')+'>채팅하기</button>';
+      html += '<button class="savebtn" id="chatStartBtn" type="button" style="width:100%;margin-top:6px;">채팅하기</button>';
+      // 버튼을 아예 비활성화하면 아무 반응이 없어 혼란스러우니, 눌렀을 때만
+      // 버튼 바로 아래에 안내 문구를 띄워요(아무도 선택하지 않은 상태).
+      html += '<p class="toast" id="chatSelectHint" style="color:var(--brick);"></p>';
     }
     return html;
   }
@@ -10741,7 +10854,7 @@
     var rooms = chatRoomsForSelf();
     var html = '';
     rooms.forEach(function(r){
-      var icon = r.roomType === 'group' ? '👥' : '💬';
+      var icon = (r.roomType === 'group' || r.roomType === 'customGroup') ? '👥' : '💬';
       html += '<div class="rule-card" data-chat-room="'+r.roomId+'" style="margin-bottom:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;">';
       html += '<div style="min-width:0;flex:1;">';
       html += '<p style="font-weight:700;font-size:14px;">'+icon+' '+escapeHtml(r.otherName)+(r.roomType==='group'?' <span style="font-size:11px;color:var(--ink-faint);font-weight:400;">(고정)</span>':'')+'</p>';
@@ -10768,7 +10881,9 @@
     if(chatActiveTab === 'employees'){
       body.querySelectorAll('[data-chat-emp]').forEach(function(el){
         el.addEventListener('click', function(){
-          chatSelectedEmployeeId = el.getAttribute('data-chat-emp');
+          var id = el.getAttribute('data-chat-emp');
+          var idx = chatSelectedEmployeeIds.indexOf(id);
+          if(idx === -1) chatSelectedEmployeeIds.push(id); else chatSelectedEmployeeIds.splice(idx, 1);
           renderChatListBody();
         });
         el.addEventListener('dblclick', function(){
@@ -10778,7 +10893,16 @@
       var startBtn = document.getElementById('chatStartBtn');
       if(startBtn){
         startBtn.addEventListener('click', function(){
-          if(chatSelectedEmployeeId) openChatRoomWithEmployee(chatSelectedEmployeeId);
+          if(chatSelectedEmployeeIds.length === 0){
+            var hint = document.getElementById('chatSelectHint');
+            if(hint) hint.textContent = '채팅 대상을 선택해 주세요';
+            return;
+          }
+          if(chatSelectedEmployeeIds.length === 1){
+            openChatRoomWithEmployee(chatSelectedEmployeeIds[0]);
+          }else{
+            openChatCustomGroupRoom(chatSelectedEmployeeIds.slice());
+          }
         });
       }
     }else{
@@ -10801,14 +10925,33 @@
   function openChatGroupRoom(){
     openChatRoom(CHAT_GROUP_ROOM_ID, 'group', null, '단체채팅방');
   }
+  // 직원 목록에서 여러 명을 선택하고 "채팅하기"를 눌렀을 때 호출돼요. 똑같은
+  // 조합의 사람들을 다시 선택하면 새 방이 아니라 기존 다중채팅방을 그대로 열어요.
+  async function openChatCustomGroupRoom(otherIds){
+    var selfId = chatSelfId();
+    var memberIds = otherIds.slice();
+    if(memberIds.indexOf(selfId) === -1) memberIds.push(selfId);
+    var roomId = chatRoomIdForGroupMembers(memberIds);
+    var existing = chatCustomRooms.find(function(r){ return r.id === roomId; });
+    if(!existing){
+      var now = new Date().toISOString();
+      var obj = { id: roomId, employeeId: currentEmployee ? currentEmployee.id : null, memberIds: memberIds.slice().sort(), name: '', createdBy: selfId, createdAt: now, updatedAt: now };
+      var ok = await upsertChatRoom(obj);
+      if(!ok) return;
+      existing = obj;
+    }
+    openChatRoom(roomId, 'customGroup', null, chatCustomGroupDisplayName(existing, selfId));
+  }
   async function openChatRoom(roomId, roomType, otherId, otherName){
     chatActiveRoomId = roomId;
     chatLeaveConfirming = false;
-    document.getElementById('chatRoomTitle').textContent = (roomType === 'group' ? '👥 ' : '💬 ') + otherName;
+    document.getElementById('chatRoomTitle').textContent = (roomType === 'group' || roomType === 'customGroup' ? '👥 ' : '💬 ') + otherName;
     var leaveBtn = document.getElementById('chatRoomLeaveBtn');
     leaveBtn.style.display = roomType === 'direct' ? '' : 'none';
     leaveBtn.textContent = '나가기';
     leaveBtn.style.color = '';
+    var renameBtn = document.getElementById('chatRoomRenameBtn');
+    if(renameBtn) renameBtn.style.display = roomType === 'customGroup' ? '' : 'none';
     currentReceiptImage = null;
     refreshReceiptPreview('chat');
     document.getElementById('chatComposeInput').value = '';
@@ -10817,6 +10960,7 @@
     // 폴링 주기를 기다리지 않고 방을 여는 즉시 최신 메시지로 보여줘요.
     chatMessages = await loadChatMessages();
     chatReads = await loadChatReads();
+    chatCustomRooms = await loadChatRooms();
     renderChatRoomMessages();
     await upsertChatRead(roomId);
     updateChatBadges();
@@ -10828,6 +10972,31 @@
     chatActiveTab = 'rooms';
     renderChatListBody();
     startChatPolling();
+  }
+  // 다중채팅방 이름을 등록/수정하는 작은 시트예요. 고정 단체채팅방이나 1:1방은
+  // 대상이 아니라 chatRoomRenameBtn 자체가 그때는 숨겨져 있어요.
+  function openChatRoomNameSheet(){
+    var meta = chatCustomRooms.find(function(r){ return r.id === chatActiveRoomId; });
+    if(!meta) return;
+    var selfId = chatSelfId();
+    var body = document.getElementById('chatRoomNameBody');
+    var html = '';
+    html += '<div class="field"><span class="field-label field-label-strong">채팅방 이름</span><input type="text" id="crn_name" placeholder="'+escapeHtml(chatCustomGroupDisplayName(Object.assign({}, meta, {name:''}), selfId))+'" value="'+escapeHtml(meta.name||'')+'"></div>';
+    html += '<p class="savehint">비워두면 참여 중인 직원 이름으로 자동 표시돼요.</p>';
+    html += '<div class="row2" style="margin-top:16px;"><button class="cancelbtn" id="crn_cancelBtn" type="button">취소</button><button class="savebtn" id="crn_saveBtn" type="button">저장</button></div>';
+    body.innerHTML = html;
+    document.getElementById('crn_cancelBtn').addEventListener('click', function(){ closeSheet('chatRoomNameSheet'); });
+    document.getElementById('crn_saveBtn').addEventListener('click', async function(){
+      var val = document.getElementById('crn_name').value.trim();
+      var updated = Object.assign({}, meta, { name: val, updatedAt: new Date().toISOString() });
+      var ok = await upsertChatRoom(updated);
+      if(ok){
+        closeSheet('chatRoomNameSheet');
+        document.getElementById('chatRoomTitle').textContent = '👥 ' + chatCustomGroupDisplayName(updated, selfId);
+        renderChatListBody();
+      }
+    });
+    openSheet('chatRoomNameSheet');
   }
   function scrollChatToBottom(){
     var wrap = document.querySelector('#chatRoomScreen .side-scroll-wrap');
@@ -10847,7 +11016,7 @@
       return '<span style="font-size:10.5px;color:'+(isRead?'var(--ink-faint)':'var(--brick)')+';">'+(isRead?'읽음':'안읽음')+'</span>';
     }
     var unreadCount = groupParticipantIds.filter(function(pid){
-      var mark = chatReadMarkFor(CHAT_GROUP_ROOM_ID, pid);
+      var mark = chatReadMarkFor(m.roomId, pid);
       return !(mark && mark.lastReadAt && m.createdAt && mark.lastReadAt >= m.createdAt);
     }).length;
     return '<span style="font-size:10.5px;color:var(--ink-faint);">'+(unreadCount>0?(unreadCount+'명 안읽음'):'모두 읽음')+'</span>';
@@ -10856,20 +11025,24 @@
     var body = document.getElementById('chatMessagesBody');
     if(!body) return;
     var selfId = chatSelfId();
-    var roomType = chatActiveRoomId === CHAT_GROUP_ROOM_ID ? 'group' : 'direct';
+    var roomType = chatActiveRoomId === CHAT_GROUP_ROOM_ID ? 'group' : (chatCustomRooms.some(function(r){ return r.id === chatActiveRoomId; }) ? 'customGroup' : 'direct');
     var otherId = null;
     if(roomType === 'direct'){
       var roomParts = (chatActiveRoomId||'').split(':');
       otherId = (roomParts[1] === selfId) ? roomParts[2] : roomParts[1];
     }
-    // 단체채팅방의 "참가자"는 별도 멤버 목록이 없어서, 재직 중인 전체
+    // 단체채팅방(고정)의 "참가자"는 별도 멤버 목록이 없어서, 재직 중인 전체
     // 직원+관리자(나를 제외)로 간주해요(단체채팅방 자체가 팀 전체에게
-    // 항상 열려있는 구조라서요).
+    // 항상 열려있는 구조라서요). 다중채팅방(customGroup)은 방을 만들 때
+    // 정한 memberIds를 그대로 참가자로 써요.
     var groupParticipantIds = [];
     if(roomType === 'group'){
       groupParticipantIds = employees.filter(function(e){ return !e.resignDate && !(e.leaveDate && !e.returnDate); }).map(function(e){ return e.id; });
       groupParticipantIds.push('__admin__');
       groupParticipantIds = groupParticipantIds.filter(function(id){ return id !== selfId; });
+    }else if(roomType === 'customGroup'){
+      var roomMeta = chatCustomRooms.find(function(r){ return r.id === chatActiveRoomId; });
+      groupParticipantIds = (roomMeta && roomMeta.memberIds ? roomMeta.memberIds : []).filter(function(id){ return id !== selfId; });
     }
     var msgs = chatMessages.filter(function(m){ return m.roomId === chatActiveRoomId; })
       .slice().sort(function(a,b){ return (a.createdAt||'') < (b.createdAt||'') ? -1 : 1; });
@@ -10880,7 +11053,7 @@
     msgs.forEach(function(m){
       var mine = m.senderId === selfId;
       html += '<div class="chat-bubble-row" style="align-items:'+(mine?'flex-end':'flex-start')+';">';
-      if(!mine && m.roomType === 'group'){
+      if(!mine && (m.roomType === 'group' || m.roomType === 'customGroup')){
         html += '<span style="font-size:11px;color:var(--ink-faint);margin-bottom:2px;">'+escapeHtml(m.senderName||'')+'</span>';
       }
       html += '<div class="chat-bubble" style="background:'+(mine?'var(--pine)':'var(--paper-raised)')+';color:'+(mine?'#fff':'var(--ink)')+';">';
@@ -10931,7 +11104,7 @@
     var image = currentReceiptImage;
     if(!content && !image) return;
     var roomId = chatActiveRoomId;
-    var roomType = roomId === CHAT_GROUP_ROOM_ID ? 'group' : 'direct';
+    var roomType = roomId === CHAT_GROUP_ROOM_ID ? 'group' : (chatCustomRooms.some(function(r){ return r.id === roomId; }) ? 'customGroup' : 'direct');
     var recipientId = null;
     if(roomType === 'direct'){
       var parts = roomId.split(':');
@@ -13040,11 +13213,12 @@
     });
     async function openChatScreenFromMenu(){
       chatActiveTab = 'rooms';
-      chatSelectedEmployeeId = null;
+      chatSelectedEmployeeIds = [];
       // 폴링 주기(3초)를 기다리지 않고, 여는 즉시 최신 메시지/읽음정보로
       // 목록을 그려요(그래야 방금 도착한 메시지의 방 배지가 바로 보여요).
       chatMessages = await loadChatMessages();
       chatReads = await loadChatReads();
+      chatCustomRooms = await loadChatRooms();
       renderChatListBody();
       document.getElementById('chatScreen').classList.add('open');
       startChatPolling();
@@ -13062,10 +13236,12 @@
     });
     document.getElementById('chatTabEmployeesBtn').addEventListener('click', function(){
       chatActiveTab = 'employees';
-      chatSelectedEmployeeId = null;
+      chatSelectedEmployeeIds = [];
       renderChatListBody();
     });
     document.getElementById('chatRoomBackBtn').addEventListener('click', closeChatRoom);
+    document.getElementById('chatRoomRenameBtn').addEventListener('click', openChatRoomNameSheet);
+    document.getElementById('chatRoomNameCloseBtn').addEventListener('click', function(){ closeSheet('chatRoomNameSheet'); });
     document.getElementById('chatRoomLeaveBtn').addEventListener('click', async function(){
       var btn = document.getElementById('chatRoomLeaveBtn');
       if(!chatLeaveConfirming){
@@ -13356,6 +13532,7 @@
       suggestions = await loadSuggestions();
       chatMessages = await loadChatMessages();
       chatReads = await loadChatReads();
+      chatCustomRooms = await loadChatRooms();
       updateChatBadges();
       // 채팅화면을 열어야만 폴링이 도는 게 아니라, 로그인해있는 동안은 달력
       // 화면에 있어도 배지가 실시간으로 갱신되도록 계속 폴링해요.
