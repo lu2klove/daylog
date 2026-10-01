@@ -12142,7 +12142,9 @@
     html += '<button class="chip'+(statsPeriodMode==='specificyear'?' selected':'')+'" id="statsYearPickBtn" type="button">'+yearPickLabel+'</button>';
     html += '</div>';
 
-    if(['specificyear','quarter','half','year','month','lastmonth','specificmonth'].indexOf(statsPeriodMode) !== -1){
+    // "결산" 리포트는 출장/경비/야근/복지비 등 회사 전체 지출 총액을 보여주는
+    // 관리자용 요약이라, 일반 직원 화면에는 노출하지 않아요.
+    if(statsAdmin && ['specificyear','quarter','half','year','month','lastmonth','specificmonth'].indexOf(statsPeriodMode) !== -1){
       html += renderPeriodReportHTML(statsPeriodMode);
     }
 
