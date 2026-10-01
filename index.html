@@ -441,6 +441,17 @@
     gap:8px;
     margin-bottom:14px;
   }
+  /* 일반 직원 화면엔 버튼이 📝업무/🗓️근무기록 2개뿐이라, 위 3칸 그리드를
+     그대로 쓰면 왼쪽 두 칸만 채워지고 오른쪽이 비어서 왼쪽으로 쏠려 보여요.
+     이 경우만 grid 대신 가운데 정렬 flex로 바꿔요(관리자 화면의 6개 버튼
+     2줄×3칸 그리드는 그대로 유지돼요). */
+  .tagbtn-row.tagbtn-row-center{
+    display:flex;
+    justify-content:center;
+  }
+  .tagbtn-row.tagbtn-row-center .tagbtn{
+    flex:0 1 120px;
+  }
   .tagbtn{
     flex:1;
     padding:12px 6px;
@@ -2313,7 +2324,7 @@
       // 사람(직원)이 바뀌었을 수 있으니 새로 불러온 뒤에 배지를 계산해요.
       chatMessages = await loadChatMessages();
       chatReads = await loadChatReads();
-      chatCustomRooms = await loadChatRooms();
+      await refreshChatCustomRooms();
       applyRoleUI();
       renderCalendar();
       renderDayDetail();
@@ -2930,7 +2941,7 @@
       html += '<span style="color:var(--brick);font-weight:600;font-size:12.5px;margin-left:6px;">🎌 '+escapeHtml(KR_HOLIDAYS[selectedDate])+'</span>';
     }
     html += '</div>';
-    html += '<div class="tagbtn-row">';
+    html += '<div class="tagbtn-row'+(isAdminUser() ? '' : ' tagbtn-row-center')+'">';
     if(isAdminUser()){
       html += '<button class="tagbtn trip" id="addTripBtn" type="button"><span class="tagicon">✈️</span>출장</button>';
       html += '<button class="tagbtn expense" id="addExpenseBtn" type="button"><span class="tagicon">💳</span>경비</button>';
@@ -10774,14 +10785,28 @@
       updated_at: obj.updatedAt || new Date().toISOString()
     };
   }
+  // 실패(네트워크 오류 등) 시 빈 배열([])이 아니라 null을 돌려줘요. 호출하는
+  // 쪽(refreshChatCustomRooms)이 null이면 기존 chatCustomRooms를 그대로
+  // 두도록 구분하기 위해서예요 — 예전에는 실패해도 []를 돌려줬는데, 그걸
+  // 그대로 chatCustomRooms에 덮어쓰면 "방금 막 만든 다중채팅방"처럼 서버에는
+  // 이미 잘 저장돼 있는 방 정보가 일시적인 불러오기 실패 한 번 때문에
+  // 화면(채팅 목록)에서 통째로 사라져 보이는 문제가 있었어요.
   async function loadChatRooms(){
     try{
       var uid = await getCurrentUserId();
-      if(!uid) return [];
+      if(!uid) return null;
       var res = await supabaseClient.from('chat_rooms').select('*').eq('user_id', uid);
-      if(res.error){ reportSyncError('채팅방 정보 불러오기', res.error); return []; }
+      if(res.error){ reportSyncError('채팅방 정보 불러오기', res.error); return null; }
       return res.data.map(chatRoomRowToObject);
-    }catch(e){ reportSyncError('채팅방 정보 불러오기', e); return []; }
+    }catch(e){ reportSyncError('채팅방 정보 불러오기', e); return null; }
+  }
+  // chatCustomRooms를 안전하게 새로고침해요. 불러오기에 실패하면(null) 기존
+  // 값을 그대로 유지해서, 일시적인 오류 한 번으로 이미 알고 있던 다중채팅방
+  // 목록이 화면에서 사라지는 일이 없게 해요.
+  async function refreshChatCustomRooms(){
+    var fresh = await loadChatRooms();
+    if(fresh) chatCustomRooms = fresh;
+    return chatCustomRooms;
   }
   // isNew=true(새 다중채팅방을 처음 만들 때)만 INSERT를 쓰고, 그 외(이름변경/멤버
   // 추가/나가기처럼 이미 있는 방을 고치는 경우)는 항상 UPDATE를 써요. upsert()(=INSERT
@@ -10881,11 +10906,17 @@
     });
     var rooms = Object.keys(byRoom).map(function(k){ return byRoom[k]; });
     // 내가 더 이상 멤버가 아닌 다중채팅방(메시지는 남아있지만 방 정보 기준
-    // 멤버에서 빠진 경우)은 목록에서 제외해요.
+    // 멤버에서 빠진 경우)은 목록에서 제외해요. 다만 방 정보(meta)를 아예 못
+    // 찾은 경우(예: chatCustomRooms를 아직 못 불러왔거나 일시적으로 불러오기에
+    // 실패한 경우)는 "멤버가 아니다"로 단정하지 않아요 — 그 방에 내가 보낸
+    // 메시지가 있으면(=분명히 내가 참여자였던 방이면) 그대로 보여주고, 내
+    // 메시지가 하나도 없는 방만 숨겨요(막 생성됐는데 방 정보를 아직 못 받은
+    // "남의 방"이 잠깐 새어 보이는 것까진 막기 위함이에요).
     rooms = rooms.filter(function(r){
       if(r.roomType !== 'customGroup') return true;
       var meta = chatCustomRooms.find(function(x){ return x.id === r.roomId; });
-      return !!(meta && meta.memberIds && meta.memberIds.indexOf(selfId) !== -1);
+      if(meta) return !!(meta.memberIds && meta.memberIds.indexOf(selfId) !== -1);
+      return r.messages.some(function(m){ return m.senderId === selfId; });
     });
     rooms.forEach(function(r){
       r.messages.sort(function(a,b){ return (a.createdAt||'') < (b.createdAt||'') ? -1 : 1; });
@@ -10948,7 +10979,7 @@
     chatPollTimer = setInterval(async function(){
       chatMessages = await loadChatMessages();
       chatReads = await loadChatReads();
-      chatCustomRooms = await loadChatRooms();
+      await refreshChatCustomRooms();
       if(document.getElementById('chatRoomScreen').classList.contains('open')){
         renderChatRoomMessages();
       }
@@ -11117,7 +11148,7 @@
     // 폴링 주기를 기다리지 않고 방을 여는 즉시 최신 메시지로 보여줘요.
     chatMessages = await loadChatMessages();
     chatReads = await loadChatReads();
-    chatCustomRooms = await loadChatRooms();
+    await refreshChatCustomRooms();
     updateChatRoomHeaderSubtitle();
     renderChatRoomMessages();
     await upsertChatRead(roomId);
@@ -13535,7 +13566,7 @@
       // 목록을 그려요(그래야 방금 도착한 메시지의 방 배지가 바로 보여요).
       chatMessages = await loadChatMessages();
       chatReads = await loadChatReads();
-      chatCustomRooms = await loadChatRooms();
+      await refreshChatCustomRooms();
       renderChatListBody();
       document.getElementById('chatScreen').classList.add('open');
       startChatPolling();
@@ -13873,7 +13904,7 @@
       suggestions = await loadSuggestions();
       chatMessages = await loadChatMessages();
       chatReads = await loadChatReads();
-      chatCustomRooms = await loadChatRooms();
+      await refreshChatCustomRooms();
       updateChatBadges();
       // 채팅화면을 열어야만 폴링이 도는 게 아니라, 로그인해있는 동안은 달력
       // 화면에 있어도 배지가 실시간으로 갱신되도록 계속 폴링해요.
