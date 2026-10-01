@@ -63,6 +63,30 @@
   body.theme-dark .month-cell.active,
   body.theme-dark .pagebtn.active{ color:#1B1C18; }
 
+  body.theme-naver{
+    --paper:#FFFFFF;
+    --paper-raised:#F5F6F7;
+    --ink:#191919;
+    --ink-soft:#5A5A5A;
+    --ink-faint:#8E8E8E;
+    --line:#E4E5E6;
+    --pine:#03C75A;
+    --pine-soft:#E4F9EC;
+    --brick:#A8452F;
+    --brick-soft:#F0DAD2;
+    --olive:#8A7B4E;
+    --olive-soft:#EAE3CC;
+    --blue:#2B6FCB;
+    --blue-soft:#DCE7F5;
+    --purple:#7B6A9E;
+    --purple-soft:#E7E1F0;
+    --teal:#2E8B7C;
+    --teal-soft:#D9EEEA;
+    --amber:#B8791E;
+    --amber-soft:#F0E0BE;
+    --stamp:#191919;
+  }
+
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;}
   body{
@@ -1730,6 +1754,7 @@
     <button class="chip" data-theme="auto" type="button">자동</button>
     <button class="chip" data-theme="light" type="button">라이트</button>
     <button class="chip" data-theme="dark" type="button">다크</button>
+    <button class="chip" data-theme="naver" type="button">네이버 그린</button>
   </div>
 
   <p class="card-title">🔤 폰트</p>
@@ -2124,7 +2149,9 @@
     return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   }
   function applyThemePref(){
-    var isDark = (themePref === 'dark') || (themePref === 'auto' && systemPrefersDark());
+    var isNaver = (themePref === 'naver');
+    var isDark = !isNaver && ((themePref === 'dark') || (themePref === 'auto' && systemPrefersDark()));
+    document.body.classList.toggle('theme-naver', isNaver);
     document.body.classList.toggle('theme-dark', isDark);
     document.querySelectorAll('#themeChips .chip').forEach(function(c){
       c.classList.toggle('selected', c.getAttribute('data-theme') === themePref);
@@ -8254,6 +8281,7 @@
     html += '<div class="field"><span class="field-label">내용</span><textarea id="cm_content" rows="5" placeholder="내용을 입력해주세요">'+escapeHtml(e.content||'')+'</textarea></div>';
     html += '<div class="field"><span class="field-label">🖼️ 이미지 (최대 '+COMMUNITY_MAX_IMAGES+'장, 다중선택 가능)</span><div id="cm_photoGrid"></div>';
     html += '<input type="file" accept="image/*" multiple id="cm_photoInput" style="display:none;"></div>';
+    html += locationSearchFieldHTML('📍 위치 (선택)', 'cm_location', 'cm_locationSearchBtn', 'cm_locationResults', e.location, '예: 강남역 회의실');
     html += '<div class="row2" style="margin-top:16px;">';
     html += '<button class="cancelbtn" id="cm_cancelBtn" type="button">취소</button>';
     html += '<button class="savebtn" id="cm_saveBtn" type="button">저장</button>';
@@ -8263,6 +8291,7 @@
     }
     body.innerHTML = html;
     refreshCommunityPhotoGrid();
+    wireLocationSearch('cm_location', 'cm_locationSearchBtn', 'cm_locationResults');
     document.getElementById('cm_photoInput').addEventListener('change', function(ev){
       var files = Array.prototype.slice.call(ev.target.files || []);
       ev.target.value = '';
@@ -8329,6 +8358,7 @@
       authorName: existingPost ? existingPost.authorName : (currentEmployee ? currentEmployee.name : '관리자'),
       title: title,
       content: document.getElementById('cm_content').value.trim(),
+      location: document.getElementById('cm_location').value.trim(),
       images: finalImagePaths,
       createdAt: existingPost ? existingPost.createdAt || now : now,
       updatedAt: now
@@ -8356,6 +8386,9 @@
     }
     if(post.content){
       html += '<p style="font-size:13.5px;white-space:pre-wrap;margin-top:14px;line-height:1.6;">'+escapeHtml(post.content)+'</p>';
+    }
+    if(post.location){
+      html += '<a href="https://map.kakao.com/?q='+encodeURIComponent(post.location)+'" target="_blank" rel="noopener" class="cancelbtn" style="display:block;width:100%;text-align:center;margin-top:12px;text-decoration:none;">📍 '+escapeHtml(post.location)+' 지도에서 보기</a>';
     }
     if(canEditCommunityPost(post)){
       html += '<div class="row2" style="margin-top:16px;">';
@@ -10595,6 +10628,20 @@
     if(all.indexOf(selfId) === -1) all.push(selfId);
     return all;
   }
+  // 화면에 "참여자/대화 상대 직원" 수나 이름을 보여줄 때 쓰는 목록이에요.
+  // 단체채팅방(고정)에는 실제 관리자 계정(__admin__, 직책이 관리자인
+  // 직원이 아니라 이메일/비번으로 로그인하는 진짜 관리자 계정)이 "직원"으로
+  // 보이면 안 되니 거기서만 빼요. 안읽음("N명 안읽음") 계산은 그대로 관리자도
+  // 포함해서 세요(관리자도 실제로 그 방에서 메시지를 읽고 쓸 수 있으니까요) —
+  // 그래서 읽음 계산에 쓰는 chatRoomParticipantIds는 그대로 두고, 화면 표시
+  // 전용으로 이 함수를 따로 둬요.
+  function chatRoomDisplayParticipantIds(roomId, roomType){
+    var ids = chatRoomParticipantIds(roomId, roomType);
+    if(roomType === 'group'){
+      ids = ids.filter(function(id){ return id !== '__admin__'; });
+    }
+    return ids;
+  }
   // 메시지 하나의 날짜 구분(YYYY-MM-DD)과, 날짜 구분선에 보여줄 "YYYY년 M월
   // D일 요일" 문구를 만들어요.
   function chatMessageDateKey(m){
@@ -11028,7 +11075,7 @@
   }
   function updateChatRoomHeaderSubtitle(){
     var roomType = chatActiveRoomId === CHAT_GROUP_ROOM_ID ? 'group' : (chatCustomRooms.some(function(r){ return r.id === chatActiveRoomId; }) ? 'customGroup' : 'direct');
-    var ids = chatRoomParticipantIds(chatActiveRoomId, roomType);
+    var ids = chatRoomDisplayParticipantIds(chatActiveRoomId, roomType);
     var btn = document.getElementById('chatRoomMemberCountBtn');
     if(btn) btn.textContent = '👥 ' + ids.length + '명';
   }
@@ -11107,7 +11154,7 @@
   }
   function renderChatMembersBody(roomType, mode){
     var selfId = chatSelfId();
-    var ids = chatRoomParticipantIds(chatActiveRoomId, roomType);
+    var ids = chatRoomDisplayParticipantIds(chatActiveRoomId, roomType);
     var body = document.getElementById('chatMembersBody');
     if(!body) return;
     var titleEl = document.getElementById('chatMembersSheetTitle');
