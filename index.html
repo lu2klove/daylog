@@ -10783,12 +10783,22 @@
       return res.data.map(chatRoomRowToObject);
     }catch(e){ reportSyncError('채팅방 정보 불러오기', e); return []; }
   }
-  async function upsertChatRoom(obj){
+  // isNew=true(새 다중채팅방을 처음 만들 때)만 INSERT를 쓰고, 그 외(이름변경/멤버
+  // 추가/나가기처럼 이미 있는 방을 고치는 경우)는 항상 UPDATE를 써요. upsert()(=INSERT
+  // ... ON CONFLICT DO UPDATE)를 쓰면 실제로는 기존 행을 고치는 것뿐이어도 Postgres가
+  // INSERT 정책(WITH CHECK: employee_id = 본인)까지 함께 확인해요. 그런데 이 employee_id는
+  // "방을 맨 처음 만든 사람"으로 고정된 값이라, 그 사람이 아닌 다른 멤버가 나가기 등을
+  // 하면 "new row violates row-level security policy" 오류가 났었어요(수정 정책 자체는
+  // 멤버면 누구나 가능하도록 이미 맞게 설계돼 있었는데, upsert가 INSERT 경로까지 함께
+  // 타면서 그 설계가 무시됐던 거예요). 순수 UPDATE는 INSERT 정책과 무관하게 동작해요.
+  async function upsertChatRoom(obj, isNew){
     try{
       var uid = await getCurrentUserId();
       if(!uid){ reportSyncError('채팅방 저장', '로그인 세션을 찾을 수 없어요'); return false; }
       var row = chatRoomObjectToRow(obj, uid);
-      var res = await supabaseClient.from('chat_rooms').upsert([row], { onConflict: 'id' });
+      var res = isNew
+        ? await supabaseClient.from('chat_rooms').insert([row])
+        : await supabaseClient.from('chat_rooms').update({ data: row.data, updated_at: row.updated_at }).eq('id', row.id).eq('user_id', uid);
       if(res.error){ reportSyncError('채팅방 저장', res.error); return false; }
       var idx = chatCustomRooms.findIndex(function(r){ return r.id === obj.id; });
       if(idx >= 0) chatCustomRooms[idx] = obj; else chatCustomRooms.push(obj);
@@ -10815,12 +10825,16 @@
     if(ok) chatMessages.push(payload);
     return ok;
   }
+  // 개별 메시지 삭제는 "내가 보낸 글"만(+관리자는 전체) 가능해야 해요. 1:1
+  // 채팅이라고 해서 상대방 글까지 지울 수 있으면 안 돼요(상대 메시지 내용
+  // 삭제 금지). 참고로 "나가기"(leaveChatRoom)는 이거와 별개 동작이에요 —
+  // 1:1방을 나갈 때 그 방의 대화 내용 전체(내 글+상대 글)를 지우는 건 기존
+  // 의도된 동작이라 그대로 두고, 여기서는 채팅방 안에서 메시지 하나하나에
+  // 뜨는 삭제 버튼 권한만 좁혀요.
   function canDeleteChatMessage(m){
     if(isAdminUser()) return true;
     var selfId = chatSelfId();
-    if(m.senderId === selfId) return true;
-    if(m.roomType === 'direct' && m.recipientId === selfId) return true;
-    return false;
+    return m.senderId === selfId;
   }
   async function deleteChatMessage(id){
     var ok = await deleteChatMessagesByIds([id]);
@@ -11067,7 +11081,7 @@
     if(!existing){
       var now = new Date().toISOString();
       var obj = { id: roomId, employeeId: currentEmployee ? currentEmployee.id : null, memberIds: memberIds.slice().sort(), name: '', createdBy: selfId, createdAt: now, updatedAt: now };
-      var ok = await upsertChatRoom(obj);
+      var ok = await upsertChatRoom(obj, true);
       if(!ok) return;
       existing = obj;
     }
@@ -11344,7 +11358,7 @@
       }
       var mine = m.senderId === selfId;
       html += '<div class="chat-bubble-row" data-chat-msg-id="'+m.id+'" style="align-items:'+(mine?'flex-end':'flex-start')+';">';
-      if(!mine && (m.roomType === 'group' || m.roomType === 'customGroup')){
+      if(!mine){
         html += '<span style="font-size:11px;color:var(--ink-faint);margin-bottom:2px;">'+escapeHtml(m.senderName||'')+'</span>';
       }
       html += '<div class="chat-bubble" style="background:'+(mine?'var(--pine)':'var(--paper-raised)')+';color:'+(mine?'#fff':'var(--ink)')+';">';
