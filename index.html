@@ -11115,6 +11115,21 @@
       var ok = await upsertChatRoom(obj, true);
       if(!ok) return;
       existing = obj;
+    }else{
+      // 방 id는 "멤버 조합"만으로 정해져서, 예전에 누군가 이 방을 나간
+      // 뒤에(leaveChatRoom으로 memberIds에서만 빠지고 id는 그대로 남음) 지금
+      // 다시 그 사람을 포함해 선택하고 "채팅하기"를 누르면 같은 id의 "기존
+      // 방"이 그대로 재사용돼요. 이때 memberIds를 그대로 두면 방금 다시 선택한
+      // 사람이 실제로는 그 방의 멤버로 저장되지 않아서, 그 사람의 채팅
+      // 목록에는 방이 안 보이고, 안읽음 인원수도 그 사람을 빼고 계산되고,
+      // 알림도 가지 않는 문제가 생겨요. 그래서 열기 전에 지금 선택된 사람 중
+      // 기존 memberIds에 빠져있는 사람이 있으면 다시 멤버로 추가해서 저장해요.
+      var missing = memberIds.filter(function(id){ return (existing.memberIds || []).indexOf(id) === -1; });
+      if(missing.length){
+        var updated = Object.assign({}, existing, { memberIds: (existing.memberIds || []).concat(missing).sort(), updatedAt: new Date().toISOString() });
+        var ok2 = await upsertChatRoom(updated);
+        if(ok2) existing = updated;
+      }
     }
     openChatRoom(roomId, 'customGroup', null, chatCustomGroupDisplayName(existing, selfId));
   }
