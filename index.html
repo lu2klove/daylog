@@ -3081,7 +3081,13 @@
           html += '시스템장애</span>';
         }
         if(e.type === 'task' && e.taskCategory === 'incidentAction'){
+          var relInc = e.linkedIncidentId ? entries.find(function(x){ return x.id === e.linkedIncidentId && x.type === 'incident'; }) : null;
+          html += '<span style="display:flex;align-items:center;gap:6px;">';
+          if(relInc && relInc.date){
+            html += '<span style="font-size:11.5px;color:var(--ink-soft);white-space:nowrap;">장애발생일 '+escapeHtml(relInc.date)+'</span>';
+          }
           html += '<span class="record-badge task" style="background:var(--brick);color:#fff;">🖥️ 장애조치</span>';
+          html += '</span>';
         }
         if(e.type === 'incident'){
           var dayStatusMeta = INCIDENT_STATUS_META[e.status] || INCIDENT_STATUS_META['접수'];
@@ -3182,6 +3188,10 @@
     inner.querySelectorAll('[data-confirmdel]').forEach(function(btn){
       btn.addEventListener('click', async function(){
         var id = btn.getAttribute('data-confirmdel');
+        // 장애조치로 연결된 업무일지를 여기(달력 상세 목록)에서 바로 삭제할
+        // 때도, 장애 쪽에 남은 조치이력이 유령으로 남지 않도록 함께 정리해요.
+        var delEntry = entries.find(function(x){ return x.id === id; });
+        if(delEntry) removeLinkedIncidentHistory(delEntry);
         entries = entries.filter(function(x){ return x.id !== id; });
         await saveEntries();
         confirmDeleteId = null;
@@ -13571,6 +13581,8 @@
     body.querySelectorAll('[data-mt-confirmdel]').forEach(function(btn){
       btn.addEventListener('click', async function(){
         var id = btn.getAttribute('data-mt-confirmdel');
+        var delEntry = entries.find(function(x){ return x.id === id; });
+        if(delEntry) removeLinkedIncidentHistory(delEntry);
         entries = entries.filter(function(x){ return x.id !== id; });
         await saveEntries();
         monthTypeConfirmDeleteId = null;
@@ -13698,6 +13710,8 @@
     wrap.querySelectorAll('[data-stats-confirmdel]').forEach(function(btn){
       btn.addEventListener('click', async function(){
         var id = btn.getAttribute('data-stats-confirmdel');
+        var delEntry = entries.find(function(x){ return x.id === id; });
+        if(delEntry) removeLinkedIncidentHistory(delEntry);
         entries = entries.filter(function(x){ return x.id !== id; });
         await saveEntries();
         statsConfirmDeleteId = null;
