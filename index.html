@@ -10717,8 +10717,23 @@
   async function deleteChatMessagesByIds(ids){
     if(!ids || !ids.length) return true;
     try{
-      var res = await supabaseClient.from('chat_messages').delete().in('id', ids);
+      // .select('id')를 같이 요청해서 "실제로 지워진 행"을 돌려받아요. RLS
+      // 정책이 막는 행은 DB가 에러를 내지 않고 그냥 조용히 삭제 대상에서
+      // 빠지기 때문에(res.error만 보면 항상 성공한 것처럼 보임), 요청한
+      // id 수와 실제로 지워진 id 수를 직접 비교해야만 "일부만 지워진"
+      // 상황(예: 다중채팅방 멤버가 아닌데도 남의 글까지 지우려 한 경우)을
+      // 잡아낼 수 있어요. 이걸 놓치면, 마지막 멤버가 나가면서 대화를 전부
+      // 지우려 했는데 실제로는 본인 글만 지워지고 남의 글은 그대로 DB에
+      // 남아있는데도 "성공"으로 처리되어, 나중에 같은 멤버로 다시 채팅을
+      // 시작했을 때 지워졌어야 할 예전 대화가 다시 나타나는 문제가 생겨요.
+      var res = await supabaseClient.from('chat_messages').delete().in('id', ids).select('id');
       if(res.error){ reportSyncError('채팅 삭제', res.error); return false; }
+      var deletedIds = (res.data || []).map(function(r){ return r.id; });
+      var missingIds = ids.filter(function(id){ return deletedIds.indexOf(id) === -1; });
+      if(missingIds.length){
+        reportSyncError('채팅 삭제', '권한이 없어 일부 메시지(' + missingIds.length + '건)가 삭제되지 않았어요. Supabase의 chat_messages 삭제 정책을 확인해주세요.');
+        return false;
+      }
       return true;
     }catch(e){ reportSyncError('채팅 삭제', e); return false; }
   }
