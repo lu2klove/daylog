@@ -10996,6 +10996,7 @@
       await refreshChatCustomRooms();
       if(document.getElementById('chatRoomScreen').classList.contains('open')){
         renderChatRoomMessages();
+        refreshChatRoomHeaderIfOpen();
       }
       if(document.getElementById('chatScreen').classList.contains('open')){
         renderChatListBody();
@@ -11152,6 +11153,22 @@
     var ids = chatRoomDisplayParticipantIds(chatActiveRoomId, roomType);
     var btn = document.getElementById('chatRoomMemberCountBtn');
     if(btn) btn.textContent = '👥 ' + ids.length + '명';
+  }
+  // 다중채팅방 제목(상대 이름 나열)과 인원수 배지는 openChatRoom()에서 방을 열
+  // 때 한 번만 계산됐어요. 그런데 방을 계속 열어둔 채로(예: 상대가 나갔다가
+  // 다시 들어오는 등) 멤버 구성이 바뀌면, 폴링으로 메시지/멤버 데이터 자체는
+  // 새로고침되는데도 제목/인원수 표시는 방을 처음 열었을 때 값 그대로 멈춰
+  // 있어서 "방금 바뀐 멤버 구성"이 화면에 반영이 안 되는 문제가 있었어요.
+  // 폴링마다 같이 불러서 열려있는 방의 제목/인원수도 최신으로 맞춰요.
+  function refreshChatRoomHeaderIfOpen(){
+    if(!document.getElementById('chatRoomScreen').classList.contains('open')) return;
+    if(chatActiveRoomId === CHAT_GROUP_ROOM_ID) return; // 고정 단체채팅방은 제목이 안 바뀜
+    var selfId = chatSelfId();
+    var meta = chatCustomRooms.find(function(r){ return r.id === chatActiveRoomId; });
+    if(meta){
+      document.getElementById('chatRoomTitle').textContent = '👥 ' + chatCustomGroupDisplayName(meta, selfId);
+    }
+    updateChatRoomHeaderSubtitle();
   }
   async function openChatRoom(roomId, roomType, otherId, otherName){
     chatActiveRoomId = roomId;
