@@ -1388,7 +1388,12 @@
   <div class="side-header">
     <button class="icon-back-btn" id="chatBackBtn" type="button">‹</button>
     <span class="side-title">💬 채팅</span>
-    <span style="width:44px;"></span>
+    <!-- 지금 로그인한 본인의 사진(등록돼 있으면)+이름을 우측 상단에 작게
+         보여줘요(설정 화면의 "내 정보" 표시와 동일한 방식, 사진 없으면 👤). -->
+    <div id="chatMenuSelfBadge" style="display:none;align-items:center;gap:5px;max-width:88px;overflow:hidden;justify-content:flex-end;">
+      <span id="chatMenuSelfPhotoWrap" style="width:26px;height:26px;border-radius:50%;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--paper-raised);font-size:14px;line-height:1;">👤</span>
+      <span id="chatMenuSelfName" style="font-size:11.5px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+    </div>
   </div>
   <div class="side-scroll-wrap">
     <div class="side-body">
@@ -1409,12 +1414,6 @@
       <button type="button" id="chatRoomMemberCountBtn" style="background:none;border:none;padding:0;margin-top:2px;font-size:11.5px;color:var(--ink-soft);cursor:pointer;">👥 0명</button>
     </div>
     <div style="display:flex;gap:6px;align-items:center;">
-      <!-- 1:1 채팅방일 때만 상대 직원의 사진+이름을 우측 상단에 보여줘요(단체/다중채팅방은
-           제목에 이미 참가자 이름이 나열돼 있어서 특정 "한 사람"이 없어요). -->
-      <div id="chatRoomPartnerBadge" style="display:none;align-items:center;gap:5px;max-width:84px;overflow:hidden;">
-        <span id="chatRoomPartnerPhotoWrap" style="width:26px;height:26px;border-radius:50%;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--paper-raised);font-size:14px;line-height:1;">👤</span>
-        <span id="chatRoomPartnerName" style="font-size:11.5px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
-      </div>
       <button class="side-icon-circle" id="chatRoomSearchBtn" type="button" aria-label="채팅 검색">🔍</button>
       <button class="side-icon-circle" id="chatRoomRenameBtn" type="button" aria-label="채팅방 이름 변경" style="display:none;">✏️</button>
       <button class="side-back" id="chatRoomLeaveBtn" type="button" style="display:none;">나가기</button>
@@ -11287,6 +11286,25 @@
     });
     return html;
   }
+  // 채팅 메뉴(직원/채팅방 목록) 화면 우측 상단에, 지금 로그인한 본인의
+  // 사진(등록돼 있으면)+이름을 작게 보여줘요. 설정 화면의 "내 정보" 표시와
+  // 동일한 방식이에요(사진 없으면 👤로 대체). 관리자 계정(실제 이메일/비번
+  // 로그인, currentEmployee 없음)으로 들어온 경우엔 특정 직원 사진이 없으니
+  // 배지 자체를 숨겨요.
+  function updateChatMenuSelfBadge(){
+    var badge = document.getElementById('chatMenuSelfBadge');
+    if(!badge) return;
+    if(!currentEmployee){ badge.style.display = 'none'; return; }
+    var photoWrap = document.getElementById('chatMenuSelfPhotoWrap');
+    if(photoWrap){
+      photoWrap.innerHTML = currentEmployee.photo
+        ? ('<img src="'+currentEmployee.photo+'" style="width:100%;height:100%;object-fit:cover;">')
+        : '👤';
+    }
+    var nameEl = document.getElementById('chatMenuSelfName');
+    if(nameEl) nameEl.textContent = currentEmployee.name || '';
+    badge.style.display = 'flex';
+  }
   function renderChatListBody(){
     var tabRoomsBtn = document.getElementById('chatTabRoomsBtn');
     var tabEmpBtn = document.getElementById('chatTabEmployeesBtn');
@@ -11390,30 +11408,6 @@
     var btn = document.getElementById('chatRoomMemberCountBtn');
     if(btn) btn.textContent = '👥 ' + ids.length + '명';
     updateChatPartnerLeftBar(roomType);
-    updateChatRoomPartnerBadge(roomType);
-  }
-  // 1:1 채팅방 우측 상단에 상대 직원의 사진(등록돼 있으면)+이름을 작게
-  // 보여줘요. 관리자가 직원관리에서 사진을 등록 안 했으면 👤 아이콘으로
-  // 대신해요(설정 화면의 "내 정보" 표시와 동일한 방식). 단체/다중채팅방은
-  // 특정 "한 사람"이 없어서 안 보여요.
-  function updateChatRoomPartnerBadge(roomType){
-    var badge = document.getElementById('chatRoomPartnerBadge');
-    if(!badge) return;
-    if(roomType !== 'direct'){ badge.style.display = 'none'; return; }
-    var selfId = chatSelfId();
-    var parts = (chatActiveRoomId || '').split(':');
-    var otherId = (parts[1] === selfId) ? parts[2] : parts[1];
-    var emp = employees.find(function(e){ return e.id === otherId; });
-    var name = otherId === '__admin__' ? '관리자' : (emp ? emp.name : '(알 수 없음)');
-    var photoWrap = document.getElementById('chatRoomPartnerPhotoWrap');
-    if(photoWrap){
-      photoWrap.innerHTML = (emp && emp.photo)
-        ? ('<img src="'+emp.photo+'" style="width:100%;height:100%;object-fit:cover;">')
-        : '👤';
-    }
-    var nameEl = document.getElementById('chatRoomPartnerName');
-    if(nameEl) nameEl.textContent = name;
-    badge.style.display = 'flex';
   }
   // 1:1 상대가 나간 상태면 입력창 위에 "대화 상대가 없습니다" 안내와
   // "다시 참여시키기" 버튼을 띄워요. 메시지 전송 차단(handleChatSend)과
@@ -13903,6 +13897,7 @@
       chatRoomHides = await loadChatRoomHides();
       await refreshChatCustomRooms();
       renderChatListBody();
+      updateChatMenuSelfBadge();
       document.getElementById('chatScreen').classList.add('open');
       startChatPolling();
     }
