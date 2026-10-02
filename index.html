@@ -2324,6 +2324,7 @@
       // 사람(직원)이 바뀌었을 수 있으니 새로 불러온 뒤에 배지를 계산해요.
       chatMessages = await loadChatMessages();
       chatReads = await loadChatReads();
+      chatRoomHides = await loadChatRoomHides();
       await refreshChatCustomRooms();
       applyRoleUI();
       renderCalendar();
@@ -10577,6 +10578,7 @@
   var chatMessages = []; // [{id, employeeId, roomId, roomType, senderId, senderName, recipientId, content, image, createdAt, updatedAt}]
   var chatReads = []; // [{id, employeeId, roomId, readerId, lastReadAt}]
   var chatCustomRooms = []; // [{id, employeeId, memberIds:[...], name, createdBy, createdAt, updatedAt}] — 다중(그룹) 채팅방
+  var chatRoomHides = []; // [{id, employeeId, roomId, hiderId, hiddenAt}] — 1:1 채팅방 "나가기"(나만 빠지기) 마커
   var chatActiveTab = 'rooms'; // 'rooms' | 'employees'
   var chatSelectedEmployeeIds = []; // 직원 목록에서 다중 선택한 채팅 대상(1명이면 1:1, 2명 이상이면 다중채팅)
   var chatActiveRoomId = null;
@@ -10783,6 +10785,72 @@
     }catch(e){ reportSyncError('채팅 읽음 표시', e); return false; }
   }
 
+  // 1:1 채팅방 "나가기"(나만 빠지기) 마커. 다중채팅방처럼 멤버 목록이 따로
+  // 없는 1:1방에서, "내가 이 방을 언제 나갔는지"만 기록해요. chat_reads와
+  // 동일하게 hiddenAt도 각 기기 시계가 아니라 DB 서버 시각(updated_at)을
+  // 그대로 써요 — 그래야 "나간 뒤에 새 메시지가 왔는지"를 기기별 시계 오차
+  // 없이 정확히 비교할 수 있어요.
+  function chatRoomHideRowToObject(row){
+    return Object.assign({ id: row.id, employeeId: row.employee_id }, row.data || {}, { hiddenAt: row.updated_at });
+  }
+  function chatRoomHideObjectToRow(obj, userId){
+    var rest = Object.assign({}, obj);
+    delete rest.id; delete rest.employeeId; delete rest.hiddenAt;
+    return {
+      id: obj.id,
+      user_id: userId,
+      employee_id: obj.employeeId || null,
+      data: rest,
+      updated_at: new Date().toISOString()
+    };
+  }
+  async function loadChatRoomHides(){
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid) return [];
+      var res = await supabaseClient.from('chat_room_hides').select('*').eq('user_id', uid);
+      if(res.error){ reportSyncError('채팅방 나감 정보 불러오기', res.error); return []; }
+      return res.data.map(chatRoomHideRowToObject);
+    }catch(e){ reportSyncError('채팅방 나감 정보 불러오기', e); return []; }
+  }
+  // 1:1 채팅방에서 "나가기" — 다중채팅방의 "나만 빠지기"와 동일한 취지로,
+  // 메시지를 지우지 않고 "내가 나갔다"는 마커만 남겨요. 상대방 쪽 대화는
+  // 전혀 영향을 안 받고, 나중에 상대가 새 메시지를 보내면(또는 내가 다시
+  // 그 사람과의 채팅을 열면) 내 목록에도 예전 대화가 유실 없이 다시 보여요.
+  async function hideChatRoomForSelf(roomId){
+    var selfId = chatSelfId();
+    var id = selfId + ':' + roomId;
+    var obj = { id: id, employeeId: currentEmployee ? currentEmployee.id : null, roomId: roomId, hiderId: selfId };
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid) return false;
+      var row = chatRoomHideObjectToRow(obj, uid);
+      var res = await supabaseClient.from('chat_room_hides').upsert([row], { onConflict: 'id' });
+      if(res.error){ reportSyncError('채팅방 나가기', res.error); return false; }
+      obj.hiddenAt = row.updated_at;
+      var idx = chatRoomHides.findIndex(function(r){ return r.id === id; });
+      if(idx >= 0) chatRoomHides[idx] = obj; else chatRoomHides.push(obj);
+      return true;
+    }catch(e){ reportSyncError('채팅방 나가기', e); return false; }
+  }
+  // 내가 예전에 "나갔던" 1:1 채팅방을 다시 직접 열면(직원 목록에서 그
+  // 사람을 다시 선택), 그 사실 자체를 "다시 보고 싶다"는 의사로 보고 나감
+  // 마커를 지워서, 상대가 새 메시지를 보내지 않아도 바로 다시 목록에
+  // 보이게 해요(다중채팅방을 멤버가 직접 재선택해서 재합류하는 것과 동일).
+  async function unhideChatRoomForSelf(roomId){
+    var selfId = chatSelfId();
+    var id = selfId + ':' + roomId;
+    if(!chatRoomHides.some(function(r){ return r.id === id; })) return true;
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid) return false;
+      var res = await supabaseClient.from('chat_room_hides').delete().eq('id', id);
+      if(res.error){ reportSyncError('채팅방 다시 열기', res.error); return false; }
+      chatRoomHides = chatRoomHides.filter(function(r){ return r.id !== id; });
+      return true;
+    }catch(e){ reportSyncError('채팅방 다시 열기', e); return false; }
+  }
+
   // 다중(그룹) 채팅방 정보(참가자 목록/이름)를 저장하는 테이블이에요. 메시지가
   // 하나도 없어도 방 자체는 존재해야(초대받은 사람 목록에 바로 보이도록)
   // chat_messages와 별도로 둬요.
@@ -10904,10 +10972,13 @@
       var updated = Object.assign({}, meta, { memberIds: remainingMemberIds, updatedAt: new Date().toISOString() });
       return await upsertChatRoom(updated);
     }
-    var ids = chatMessages.filter(function(m){ return m.roomId === roomId; }).map(function(m){ return m.id; });
-    var ok = await deleteChatMessagesByIds(ids);
-    if(ok) chatMessages = chatMessages.filter(function(m){ return m.roomId !== roomId; });
-    return ok;
+    // 1:1 채팅방: 다중채팅방처럼 "멤버 목록"이 없고 메시지가 두 사람의
+    // 공유 자원이라, 예전엔 "나가기"가 메시지를 통째로(양쪽 분 다) 지웠어요.
+    // 그러면 내가 나갈 때 상대방 쪽 대화까지 같이 사라져버리는 문제가
+    // 있었어요(상대방은 나간 적도 없는데). 다중채팅방의 "나만 빠지기"와
+    // 동일하게, 메시지는 그대로 두고 "내가 나갔다"는 마커만 남겨서 내
+    // 목록에서만 빠지게 해요 — 상대방 화면은 전혀 영향받지 않아요.
+    return await hideChatRoomForSelf(roomId);
   }
 
   // 로그인한 사람 기준으로 "채팅 메뉴"에 뜰 방 목록을 계산해요. 단체채팅방은
@@ -10942,6 +11013,15 @@
     // 메시지가 하나도 없는 방만 숨겨요(막 생성됐는데 방 정보를 아직 못 받은
     // "남의 방"이 잠깐 새어 보이는 것까진 막기 위함이에요).
     rooms = rooms.filter(function(r){
+      if(r.roomType === 'direct'){
+        // 내가 이 1:1 채팅방을 "나간"(hideChatRoomForSelf) 적이 있으면,
+        // 그 이후로 상대가 보낸 새 메시지가 없는 한 목록에서 빼요. 새
+        // 메시지가 왔으면(나간 시각 이후) 다시 보여주고, 이때 예전 대화도
+        // 유실 없이 전부 같이 보여요(다중채팅방 재합류와 동일한 방식).
+        var hide = chatRoomHides.find(function(h){ return h.roomId === r.roomId && h.hiderId === selfId; });
+        if(!hide) return true;
+        return r.messages.some(function(m){ return (m.createdAt || '') > hide.hiddenAt; });
+      }
       if(r.roomType !== 'customGroup') return true;
       var meta = chatCustomRooms.find(function(x){ return x.id === r.roomId; });
       if(meta) return !!(meta.memberIds && meta.memberIds.indexOf(selfId) !== -1);
@@ -11008,6 +11088,7 @@
     chatPollTimer = setInterval(async function(){
       chatMessages = await loadChatMessages();
       chatReads = await loadChatReads();
+      chatRoomHides = await loadChatRoomHides();
       await refreshChatCustomRooms();
       if(document.getElementById('chatRoomScreen').classList.contains('open')){
         renderChatRoomMessages();
@@ -11123,10 +11204,17 @@
     updateChatBadges();
   }
 
-  function openChatRoomWithEmployee(empId){
+  async function openChatRoomWithEmployee(empId){
     var emp = employees.find(function(e){ return e.id === empId; });
     var name = emp ? emp.name : '(알 수 없음)';
-    openChatRoom(chatRoomIdForDirect(chatSelfId(), empId), 'direct', empId, name);
+    var roomId = chatRoomIdForDirect(chatSelfId(), empId);
+    // 예전에 이 사람과의 1:1 채팅을 "나갔던"(hideChatRoomForSelf) 적이
+    // 있어도, 직원 목록에서 그 사람을 다시 선택해 "채팅하기"를 누르는 건
+    // 그 대화를 다시 보고 싶다는 의사 표시이므로, 나감 마커를 지워서 상대가
+    // 새 메시지를 보내지 않아도 바로 다시 목록에 보이게 해요(다중채팅방을
+    // 멤버가 직접 재선택해서 재합류하는 것과 동일한 흐름이에요).
+    await unhideChatRoomForSelf(roomId);
+    openChatRoom(roomId, 'direct', empId, name);
   }
   function openChatGroupRoom(){
     openChatRoom(CHAT_GROUP_ROOM_ID, 'group', null, '단체채팅방');
@@ -11209,6 +11297,7 @@
     // 폴링 주기를 기다리지 않고 방을 여는 즉시 최신 메시지로 보여줘요.
     chatMessages = await loadChatMessages();
     chatReads = await loadChatReads();
+    chatRoomHides = await loadChatRoomHides();
     await refreshChatCustomRooms();
     updateChatRoomHeaderSubtitle();
     renderChatRoomMessages();
@@ -13627,6 +13716,7 @@
       // 목록을 그려요(그래야 방금 도착한 메시지의 방 배지가 바로 보여요).
       chatMessages = await loadChatMessages();
       chatReads = await loadChatReads();
+      chatRoomHides = await loadChatRoomHides();
       await refreshChatCustomRooms();
       renderChatListBody();
       document.getElementById('chatScreen').classList.add('open');
@@ -13965,6 +14055,7 @@
       suggestions = await loadSuggestions();
       chatMessages = await loadChatMessages();
       chatReads = await loadChatReads();
+      chatRoomHides = await loadChatRoomHides();
       await refreshChatCustomRooms();
       updateChatBadges();
       // 채팅화면을 열어야만 폴링이 도는 게 아니라, 로그인해있는 동안은 달력
