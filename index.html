@@ -11834,15 +11834,32 @@
     }
     html += '</div>';
 
+    // 일반 권한 직원은 "지각"/"근무태만"처럼 관리자가 직접 부여해야 하는
+    // 부정적인 근무형태는 스스로 선택할 수 없게 목록에서 빼요(이모지를 붙여
+    // 등록한 경우도 stripEmojiForCompare로 같이 걸러내요). 다만 이미 그
+    // 근무형태로 등록된 기록을 본인이 열어본 경우에는, 선택값이 사라져 저장 시
+    // 조용히 다른 형태로 바뀌어버리지 않도록 그 값만 예외로 남겨둬요.
+    var worktypeOptions = attendanceTypes;
+    if(!isAdminUser()){
+      worktypeOptions = attendanceTypes.filter(function(t){
+        var n = stripEmojiForCompare(t);
+        return n !== '지각' && n !== '근무태만';
+      });
+      if(e.workType && worktypeOptions.indexOf(e.workType) === -1){
+        var n = stripEmojiForCompare(e.workType);
+        if(n === '지각' || n === '근무태만') worktypeOptions = worktypeOptions.concat([e.workType]);
+      }
+    }
+
     html += '<div class="field"><span class="field-label field-label-strong">🏷️ 근무형태</span><select id="at_worktype">';
-    attendanceTypes.forEach(function(t){
+    worktypeOptions.forEach(function(t){
       html += '<option value="'+escapeHtml(t)+'"'+(e.workType===t?' selected':'')+'>'+escapeHtml(t)+'</option>';
     });
     html += '</select></div>';
 
     html += '<label class="checklist-item"><input type="checkbox" id="at_allDay"'+(e.allDay?' checked':'')+'><span>하루종일</span></label>';
     html += '<div id="at_timeFields" class="row2" style="'+(e.allDay?'display:none;':'')+'">';
-    var defaultPreset = (!existing && attendanceTypes.length > 0) ? (attendanceTimePresets[attendanceTypes[0]] || {}) : {};
+    var defaultPreset = (!existing && worktypeOptions.length > 0) ? (attendanceTimePresets[worktypeOptions[0]] || {}) : {};
     html += '<div class="field"><span class="field-label">시작시간</span><input type="time" id="at_startTime" value="'+(e.startTime||e.time||defaultPreset.start||'')+'"></div>';
     html += '<div class="field"><span class="field-label">종료시간</span><input type="time" id="at_endTime" value="'+(e.endTime||defaultPreset.end||'')+'"></div>';
     html += '</div>';
