@@ -1409,6 +1409,12 @@
       <button type="button" id="chatRoomMemberCountBtn" style="background:none;border:none;padding:0;margin-top:2px;font-size:11.5px;color:var(--ink-soft);cursor:pointer;">👥 0명</button>
     </div>
     <div style="display:flex;gap:6px;align-items:center;">
+      <!-- 1:1 채팅방일 때만 상대 직원의 사진+이름을 우측 상단에 보여줘요(단체/다중채팅방은
+           제목에 이미 참가자 이름이 나열돼 있어서 특정 "한 사람"이 없어요). -->
+      <div id="chatRoomPartnerBadge" style="display:none;align-items:center;gap:5px;max-width:84px;overflow:hidden;">
+        <span id="chatRoomPartnerPhotoWrap" style="width:26px;height:26px;border-radius:50%;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:var(--paper-raised);font-size:14px;line-height:1;">👤</span>
+        <span id="chatRoomPartnerName" style="font-size:11.5px;font-weight:600;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+      </div>
       <button class="side-icon-circle" id="chatRoomSearchBtn" type="button" aria-label="채팅 검색">🔍</button>
       <button class="side-icon-circle" id="chatRoomRenameBtn" type="button" aria-label="채팅방 이름 변경" style="display:none;">✏️</button>
       <button class="side-back" id="chatRoomLeaveBtn" type="button" style="display:none;">나가기</button>
@@ -1425,6 +1431,10 @@
     </div>
   </div>
   <div class="chat-compose" id="chatComposeBar">
+    <div id="chatPartnerLeftBar" style="display:none;align-items:center;justify-content:space-between;gap:8px;background:var(--paper-raised);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px;">
+      <span style="font-size:12.5px;color:var(--brick);flex:1;min-width:0;">대화 상대가 없습니다. 대화 상대를 추가 후 진행하세요.</span>
+      <button type="button" class="savebtn" id="chatPartnerReinviteBtn" style="padding:6px 10px;font-size:12.5px;flex-shrink:0;">다시 참여시키기</button>
+    </div>
     <div class="chiprow" id="chatEmojiRow" style="margin-bottom:8px;"></div>
     <div id="chat_receiptPreview"></div>
     <input type="file" accept="image/*" id="chat_receiptInput" style="display:none;">
@@ -2125,11 +2135,34 @@
       return res.data.map(entryRowToObject);
     }catch(e){ reportSyncError('entries 불러오기', e); return []; }
   }
+  // entries의 INSERT/UPDATE/DELETE RLS 정책(supabase_add_employee_rls_v2.sql)과
+  // 정확히 똑같은 기준이에요: 관리자가 아니면 "근태(attendance)/업무(task)"
+  // 기록은 본인 것만 쓸 수 있고, 그 외 타입(일지/메모/장애 등)은 원래부터
+  // 제약이 없어요. saveEntries가 매번 entries 배열 전체를 그대로 다시
+  // 올리는데(바로 아래 주석 참고), 이 기준에 안 맞는 행은 애초에 올리는
+  // 대상에서 빼야 해요 — 안 그러면 그 행 하나 때문에 upsert 전체가
+  // RLS 위반으로 실패해요.
+  function canWriteEntryRow(e){
+    if(isAdminUser()) return true;
+    if(e.type !== 'attendance' && e.type !== 'task') return true;
+    return e.employeeId === (currentEmployee ? currentEmployee.id : null);
+  }
   async function saveEntries(){
     try{
       var uid = await getCurrentUserId();
       if(!uid){ reportSyncError('entries 저장', '로그인 세션을 찾을 수 없어요'); return; }
-      var rows = entries.map(function(e){ return entryObjectToRow(e, uid); });
+      // entries는 팀 전체가 공유하는 테이블이라 loadEntries()가 전 직원의
+      // 기록을 다 불러오는데, saveEntries()는 그 전체 배열을 그대로 다시
+      // upsert해요(바뀐 게 없는 남의 기록까지 포함). 예전엔 이 때문에,
+      // 일반 직원이 자기 근태기록 하나를 등록/수정만 해도 "같이 들고 있던
+      // 남의 근태/업무기록"까지 함께 올라가면서 그 행에 대해서는 쓰기 권한이
+      // 없어(RLS 위반) upsert 전체가 통째로 실패하고, 정작 본인이 추가하려던
+      // 기록조차 저장되지 않는 문제가 있었어요(관리자는 모든 행에 쓰기
+      // 권한이 있어서 이 문제가 안 보였어요). 내가 쓸 권한이 없는 행은 어차피
+      // DB에 이미 그대로 있으니(내가 바꾼 적도 없음) 다시 올리지 않아도
+      // 전혀 문제 없어요 — 그래서 올리기 전에 미리 걸러내요.
+      var writableEntries = isAdminUser() ? entries : entries.filter(canWriteEntryRow);
+      var rows = writableEntries.map(function(e){ return entryObjectToRow(e, uid); });
       if(rows.length > 0){
         var upsertRes = await supabaseClient.from('entries').upsert(rows, { onConflict: 'id' });
         if(upsertRes.error){
@@ -2137,13 +2170,18 @@
           return;
         }
       }
-      var existingRes = await supabaseClient.from('entries').select('id').eq('user_id', uid);
+      var existingRes = await supabaseClient.from('entries').select('id, type, data').eq('user_id', uid);
       if(existingRes.error){
         reportSyncError('entries 조회(삭제 처리용)', existingRes.error);
       }else{
         var currentIds = {};
         entries.forEach(function(e){ currentIds[e.id] = true; });
-        var idsToDelete = existingRes.data.filter(function(r){ return !currentIds[r.id]; }).map(function(r){ return r.id; });
+        var idsToDelete = existingRes.data.filter(function(r){
+          if(currentIds[r.id]) return false;
+          // 위와 동일한 이유로, 내가 쓸 권한이 없는(=내가 지운 적도 없는 남의
+          // 근태/업무기록) 행은 삭제 후보에서도 제외해요.
+          return canWriteEntryRow(Object.assign({ type: r.type }, r.data || {}));
+        }).map(function(r){ return r.id; });
         if(idsToDelete.length > 0){
           var delRes = await supabaseClient.from('entries').delete().in('id', idsToDelete);
           if(delRes.error) reportSyncError('entries 삭제', delRes.error);
@@ -10664,6 +10702,11 @@
     if(roomType === 'direct'){
       var parts = (roomId||'').split(':');
       var otherId = (parts[1] === selfId) ? parts[2] : parts[1];
+      // 상대가 이미 이 방을 나간 상태면 인원수/참여자 목록에서 빼요(나간
+      // 사람까지 "2명"으로 계속 표시되던 문제 수정). chatDirectIsLeft는
+      // chat_room_hides 로딩 이후(로그인/방 열기/폴링 시점)에만 정확하니,
+      // 이 함수도 그 시점들 이후에 호출돼요.
+      if(chatDirectIsLeft(roomId, otherId)) return [selfId];
       return [selfId, otherId];
     }
     if(roomType === 'customGroup'){
@@ -10886,6 +10929,43 @@
       return true;
     }catch(e){ reportSyncError('채팅방 다시 열기', e); return false; }
   }
+  // 특정 사람(employeeId)의 나감 마커를 지워요. unhideChatRoomForSelf와
+  // 달리 "나" 말고 "상대방"의 마커도 지울 수 있어요 — 1:1 상대를 "다시
+  // 참여시키기"(아래 chatDirectReinvite) 할 때나, 둘 다 나가서 대화를
+  // 완전히 초기화할 때(leaveChatRoom) 필요해요. Supabase 쪽 DELETE 정책도
+  // 그래서 "본인 마커"뿐 아니라 "이 1:1방의 두 당사자 중 하나"면 서로의
+  // 마커를 지울 수 있도록 함께 넓혀뒀어요(supabase_add_chat_room_hides.sql
+  // 참고).
+  async function deleteChatRoomHideRowFor(employeeId, roomId){
+    var id = employeeId + ':' + roomId;
+    if(!chatRoomHides.some(function(r){ return r.id === id; })) return true;
+    try{
+      var res = await supabaseClient.from('chat_room_hides').delete().eq('id', id);
+      if(res.error){ reportSyncError('채팅방 나감 정보 초기화', res.error); return false; }
+      chatRoomHides = chatRoomHides.filter(function(r){ return r.id !== id; });
+      return true;
+    }catch(e){ reportSyncError('채팅방 나감 정보 초기화', e); return false; }
+  }
+  // 1:1 채팅방에서 employeeId가 "지금 이 순간 나간 상태"인지 알려줘요.
+  // 나간 적이 없으면 당연히 false고, 나간 적이 있어도 그 이후(나간
+  // 시각보다 뒤)에 누군가(둘 중 누구든) 메시지를 보냈으면 이미 "다시
+  // 들어온" 것으로 봐요(채팅 목록 복귀 기준과 동일). 인원수 표시, 메시지
+  // 전송 차단, "다시 참여시키기" 버튼 노출 여부에 공통으로 써요.
+  function chatDirectLeftInfo(roomId, employeeId){
+    var hide = chatRoomHides.find(function(h){ return h.roomId === roomId && h.hiderId === employeeId; });
+    if(!hide) return null;
+    var revived = chatMessages.some(function(m){ return m.roomId === roomId && (m.createdAt || '') > hide.hiddenAt; });
+    return revived ? null : hide;
+  }
+  function chatDirectIsLeft(roomId, employeeId){
+    return !!chatDirectLeftInfo(roomId, employeeId);
+  }
+  // 1:1 상대가 나간 상태일 때, 남아있는 쪽이 "다시 참여시키기"를 눌러
+  // 명시적으로 다시 데려와요. 메시지를 보내는 것만으로 조용히 복귀시키지
+  // 않고(혼잣말을 할 수 있어서), 이렇게 분명한 동작으로만 복귀하게 해요.
+  async function chatDirectReinvite(roomId, otherId){
+    return await deleteChatRoomHideRowFor(otherId, roomId);
+  }
 
   // 다중(그룹) 채팅방 정보(참가자 목록/이름)를 저장하는 테이블이에요. 메시지가
   // 하나도 없어도 방 자체는 존재해야(초대받은 사람 목록에 바로 보이도록)
@@ -11014,7 +11094,26 @@
     // 있었어요(상대방은 나간 적도 없는데). 다중채팅방의 "나만 빠지기"와
     // 동일하게, 메시지는 그대로 두고 "내가 나갔다"는 마커만 남겨서 내
     // 목록에서만 빠지게 해요 — 상대방 화면은 전혀 영향받지 않아요.
-    return await hideChatRoomForSelf(roomId);
+    var selfIdDm = chatSelfId();
+    var hideOk = await hideChatRoomForSelf(roomId);
+    if(!hideOk) return false;
+    var dmParts = (roomId || '').split(':');
+    var otherIdDm = (dmParts[1] === selfIdDm) ? dmParts[2] : dmParts[1];
+    // 상대도 이미 나간 상태라면(=이제 이 방엔 아무도 안 남음), 다중채팅방이
+    // "마지막 멤버가 나갈 때" 대화를 전부 지우는 것과 똑같이 메시지를 전부
+    // 지워요. 나감 마커도 함께 지워서 완전히 깨끗한 상태로 되돌려요 — 그래야
+    // 나중에 이 두 사람이 다시 채팅을 시작했을 때 예전 대화 없이 정말 "새
+    // 대화"로 보여요.
+    if(chatDirectIsLeft(roomId, otherIdDm)){
+      var dmMsgIds = chatMessages.filter(function(m){ return m.roomId === roomId; }).map(function(m){ return m.id; });
+      var dmDelOk = await deleteChatMessagesByIds(dmMsgIds);
+      if(dmDelOk){
+        chatMessages = chatMessages.filter(function(m){ return m.roomId !== roomId; });
+        await deleteChatRoomHideRowFor(selfIdDm, roomId);
+        await deleteChatRoomHideRowFor(otherIdDm, roomId);
+      }
+    }
+    return true;
   }
 
   // 로그인한 사람 기준으로 "채팅 메뉴"에 뜰 방 목록을 계산해요. 단체채팅방은
@@ -11054,9 +11153,7 @@
         // 그 이후로 상대가 보낸 새 메시지가 없는 한 목록에서 빼요. 새
         // 메시지가 왔으면(나간 시각 이후) 다시 보여주고, 이때 예전 대화도
         // 유실 없이 전부 같이 보여요(다중채팅방 재합류와 동일한 방식).
-        var hide = chatRoomHides.find(function(h){ return h.roomId === r.roomId && h.hiderId === selfId; });
-        if(!hide) return true;
-        return r.messages.some(function(m){ return (m.createdAt || '') > hide.hiddenAt; });
+        return !chatDirectIsLeft(r.roomId, selfId);
       }
       if(r.roomType !== 'customGroup') return true;
       var meta = chatCustomRooms.find(function(x){ return x.id === r.roomId; });
@@ -11292,6 +11389,49 @@
     var ids = chatRoomDisplayParticipantIds(chatActiveRoomId, roomType);
     var btn = document.getElementById('chatRoomMemberCountBtn');
     if(btn) btn.textContent = '👥 ' + ids.length + '명';
+    updateChatPartnerLeftBar(roomType);
+    updateChatRoomPartnerBadge(roomType);
+  }
+  // 1:1 채팅방 우측 상단에 상대 직원의 사진(등록돼 있으면)+이름을 작게
+  // 보여줘요. 관리자가 직원관리에서 사진을 등록 안 했으면 👤 아이콘으로
+  // 대신해요(설정 화면의 "내 정보" 표시와 동일한 방식). 단체/다중채팅방은
+  // 특정 "한 사람"이 없어서 안 보여요.
+  function updateChatRoomPartnerBadge(roomType){
+    var badge = document.getElementById('chatRoomPartnerBadge');
+    if(!badge) return;
+    if(roomType !== 'direct'){ badge.style.display = 'none'; return; }
+    var selfId = chatSelfId();
+    var parts = (chatActiveRoomId || '').split(':');
+    var otherId = (parts[1] === selfId) ? parts[2] : parts[1];
+    var emp = employees.find(function(e){ return e.id === otherId; });
+    var name = otherId === '__admin__' ? '관리자' : (emp ? emp.name : '(알 수 없음)');
+    var photoWrap = document.getElementById('chatRoomPartnerPhotoWrap');
+    if(photoWrap){
+      photoWrap.innerHTML = (emp && emp.photo)
+        ? ('<img src="'+emp.photo+'" style="width:100%;height:100%;object-fit:cover;">')
+        : '👤';
+    }
+    var nameEl = document.getElementById('chatRoomPartnerName');
+    if(nameEl) nameEl.textContent = name;
+    badge.style.display = 'flex';
+  }
+  // 1:1 상대가 나간 상태면 입력창 위에 "대화 상대가 없습니다" 안내와
+  // "다시 참여시키기" 버튼을 띄워요. 메시지 전송 차단(handleChatSend)과
+  // 함께, 사용자가 왜 못 보내는지 바로 알고 바로 조치할 수 있게 해요.
+  function updateChatPartnerLeftBar(roomType){
+    var bar = document.getElementById('chatPartnerLeftBar');
+    if(!bar) return;
+    if(roomType !== 'direct'){ bar.style.display = 'none'; return; }
+    var selfId = chatSelfId();
+    var parts = (chatActiveRoomId || '').split(':');
+    var otherId = (parts[1] === selfId) ? parts[2] : parts[1];
+    if(chatDirectIsLeft(chatActiveRoomId, otherId)){
+      bar.style.display = 'flex';
+      bar.setAttribute('data-other-id', otherId);
+    }else{
+      bar.style.display = 'none';
+      bar.removeAttribute('data-other-id');
+    }
   }
   // 다중채팅방 제목(상대 이름 나열)과 인원수 배지는 openChatRoom()에서 방을 열
   // 때 한 번만 계산됐어요. 그런데 방을 계속 열어둔 채로(예: 상대가 나갔다가
@@ -11644,6 +11784,14 @@
       var parts = roomId.split(':');
       var a = parts[1], b = parts[2];
       recipientId = (a === chatSelfId()) ? b : a;
+      // 상대가 이미 이 채팅방을 나간 상태면, 메시지를 보내는 것만으로
+      // 조용히 다시 데려오지 않아요(내가 모르는 사이 혼잣말을 하게 될 수
+      // 있어서). 안내 배너를 띄우고 전송 자체는 막아요 — "다시
+      // 참여시키기"를 눌러 명시적으로 데려온 뒤에만 보낼 수 있어요.
+      if(chatDirectIsLeft(roomId, recipientId)){
+        updateChatPartnerLeftBar('direct');
+        return;
+      }
     }
     var sendBtn = document.getElementById('chatSendBtn');
     sendBtn.disabled = true;
@@ -13822,6 +13970,16 @@
       closeChatRoom();
     });
     document.getElementById('chatSendBtn').addEventListener('click', handleChatSend);
+    document.getElementById('chatPartnerReinviteBtn').addEventListener('click', async function(){
+      var bar = document.getElementById('chatPartnerLeftBar');
+      var otherId = bar ? bar.getAttribute('data-other-id') : null;
+      if(!otherId) return;
+      var ok = await chatDirectReinvite(chatActiveRoomId, otherId);
+      if(ok){
+        updateChatRoomHeaderSubtitle();
+        renderChatListBody();
+      }
+    });
     document.getElementById('chatComposeInput').addEventListener('keydown', function(ev){
       if(ev.key === 'Enter' && !ev.shiftKey){
         ev.preventDefault();
