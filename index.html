@@ -679,6 +679,21 @@
     font-size:13px;
     cursor:pointer;
   }
+  .list-move-btn{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:8px;
+    width:34px;
+    height:34px;
+    padding:0;
+    font-size:13px;
+    color:var(--ink);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .list-move-btn:disabled{ opacity:0.3; cursor:default; }
   .checkbox-row{
     display:flex;
     align-items:center;
@@ -9249,8 +9264,10 @@
       html += '<p class="empty-inline">등록된 항목이 없어요.</p>';
     }
     list.forEach(function(c, i){
-      html += '<div class="row2" style="grid-template-columns:1fr auto;margin-bottom:8px;">';
+      html += '<div class="row2" style="grid-template-columns:1fr auto auto auto;align-items:center;margin-bottom:8px;">';
       html += '<input type="text" class="'+idPrefix+'_input" data-idx="'+i+'" value="'+escapeHtml(c)+'">';
+      html += '<button class="list-move-btn '+idPrefix+'_up" data-idx="'+i+'" type="button" aria-label="위로 이동"'+(i===0?' disabled':'')+'>▲</button>';
+      html += '<button class="list-move-btn '+idPrefix+'_down" data-idx="'+i+'" type="button" aria-label="아래로 이동"'+(i===list.length-1?' disabled':'')+'>▼</button>';
       html += '<button class="danger '+idPrefix+'_del" data-idx="'+i+'" type="button">삭제</button>';
       html += '</div>';
     });
@@ -9277,6 +9294,24 @@
       btn.addEventListener('click', async function(){
         var idx = parseInt(btn.getAttribute('data-idx'), 10);
         list.splice(idx, 1);
+        await saveFn();
+        rerenderFn();
+      });
+    });
+    document.querySelectorAll('.'+idPrefix+'_up').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        var idx = parseInt(btn.getAttribute('data-idx'), 10);
+        if(idx <= 0) return;
+        var tmp = list[idx-1]; list[idx-1] = list[idx]; list[idx] = tmp;
+        await saveFn();
+        rerenderFn();
+      });
+    });
+    document.querySelectorAll('.'+idPrefix+'_down').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        var idx = parseInt(btn.getAttribute('data-idx'), 10);
+        if(idx >= list.length-1) return;
+        var tmp = list[idx+1]; list[idx+1] = list[idx]; list[idx] = tmp;
         await saveFn();
         rerenderFn();
       });
