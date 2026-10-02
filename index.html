@@ -845,6 +845,29 @@
     color:var(--ink);
     cursor:pointer;
   }
+  /* iOS 스타일 "뒤로가기" 원형 버튼(어두운 원 + 흰색 "‹") — 실제 화면 전환용
+     뒤로가기 버튼에만 적용해요. 같은 자리를 빌려 쓰던 다른 기능(보기 전환,
+     설정, 나가기) 버튼은 기존 .side-back 모양을 그대로 유지해요. */
+  .icon-back-btn{
+    background:linear-gradient(145deg,#4a4a4d,#1c1c1e);
+    border:none;
+    border-radius:50%;
+    width:34px;
+    height:34px;
+    min-width:34px;
+    padding:0;
+    font-size:19px;
+    font-weight:700;
+    line-height:1;
+    color:#fff;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+    box-shadow:0 1px 3px rgba(0,0,0,0.3);
+  }
+  .icon-back-btn:active{ filter:brightness(0.9); }
   .side-icon-circle{
     font-family:'IBM Plex Sans KR',sans-serif;
     font-size:17px;
@@ -919,14 +942,27 @@
     align-items:center;
     gap:8px;
   }
+  /* iOS 스타일 "닫기" 원형 버튼(어두운 원 + 흰색 "✕") */
   .sheet-close{
-    background:none;
+    background:linear-gradient(145deg,#4a4a4d,#1c1c1e);
     border:none;
-    font-size:18px;
-    color:var(--ink-faint);
+    border-radius:50%;
+    width:30px;
+    height:30px;
+    min-width:30px;
+    padding:0;
+    font-size:14px;
+    font-weight:600;
+    line-height:1;
+    color:#fff;
     cursor:pointer;
-    padding:4px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+    box-shadow:0 1px 3px rgba(0,0,0,0.3);
   }
+  .sheet-close:active{ filter:brightness(0.9); }
 
   /* ---------- Lock screen ---------- */
   .lockscreen{
@@ -1221,7 +1257,7 @@
 
 <div class="side-screen" id="statsScreen">
   <div class="side-header">
-    <button class="side-back" id="statsBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="statsBackBtn" type="button">‹</button>
     <span class="side-title">📊 통계</span>
     <button class="side-icon-circle" id="incidentStatsBtn" type="button" aria-label="장애통계">🖥️</button>
   </div>
@@ -1232,7 +1268,7 @@
 
 <div class="side-screen" id="incidentStatsScreen">
   <div class="side-header">
-    <button class="side-back" id="incidentStatsBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="incidentStatsBackBtn" type="button">‹</button>
     <span class="side-title">🖥️ 장애통계</span>
     <span style="width:44px;"></span>
   </div>
@@ -1243,7 +1279,7 @@
 
 <div class="side-screen" id="hrScreen">
   <div class="side-header">
-    <button class="side-back" id="hrBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="hrBackBtn" type="button">‹</button>
     <span class="side-title">🧑‍💼 인사관리</span>
     <div style="display:flex;gap:6px;">
       <button class="side-icon-circle" id="teamDinnerBtn" type="button" aria-label="회식관리">🍻</button>
@@ -1259,7 +1295,7 @@
 
 <div class="side-screen" id="employeeSettingsScreen">
   <div class="side-header">
-    <button class="side-back" id="employeeSettingsBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="employeeSettingsBackBtn" type="button">‹</button>
     <span class="side-title">👤 직원 관리</span>
     <button class="side-icon-circle" id="interviewOpenBtn" type="button" aria-label="면담">💬</button>
   </div>
@@ -1270,7 +1306,7 @@
 
 <div class="side-screen" id="interviewScreen">
   <div class="side-header">
-    <button class="side-back" id="interviewBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="interviewBackBtn" type="button">‹</button>
     <span class="side-title">💬 면담관리</span>
     <span style="width:44px;"></span>
   </div>
@@ -1289,7 +1325,7 @@
 
 <div class="side-screen" id="surveyScreen">
   <div class="side-header">
-    <button class="side-back" id="surveyBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="surveyBackBtn" type="button">‹</button>
     <span class="side-title">📊 설문조사</span>
     <span style="width:44px;"></span>
   </div>
@@ -1324,7 +1360,7 @@
 
 <div class="side-screen" id="communityScreen">
   <div class="side-header">
-    <button class="side-back" id="communityBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="communityBackBtn" type="button">‹</button>
     <span class="side-title">🖼️ 커뮤니티</span>
     <button class="side-back" id="communityViewToggleBtn" type="button" aria-label="보기 전환">🔳</button>
   </div>
@@ -1343,14 +1379,14 @@
 
 <div id="communityDetailModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:20px;box-sizing:border-box;">
   <div style="background:var(--paper);border-radius:16px;max-width:460px;width:100%;max-height:85vh;overflow-y:auto;padding:20px;box-sizing:border-box;position:relative;">
-    <button id="communityDetailCloseBtn" type="button" aria-label="닫기" style="position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;background:var(--paper-raised);color:var(--ink);border:none;font-size:16px;cursor:pointer;">✕</button>
+    <button id="communityDetailCloseBtn" type="button" aria-label="닫기" style="position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;background:linear-gradient(145deg,#4a4a4d,#1c1c1e);color:#fff;border:none;font-size:16px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.3);">✕</button>
     <div id="communityDetailBody"></div>
   </div>
 </div>
 
 <div class="side-screen" id="chatScreen">
   <div class="side-header">
-    <button class="side-back" id="chatBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="chatBackBtn" type="button">‹</button>
     <span class="side-title">💬 채팅</span>
     <span style="width:44px;"></span>
   </div>
@@ -1367,7 +1403,7 @@
 
 <div class="side-screen" id="chatRoomScreen">
   <div class="side-header">
-    <button class="side-back" id="chatRoomBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="chatRoomBackBtn" type="button">‹</button>
     <div style="display:flex;flex-direction:column;align-items:center;min-width:0;flex:1;">
       <span class="side-title" id="chatRoomTitle" style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">채팅</span>
       <button type="button" id="chatRoomMemberCountBtn" style="background:none;border:none;padding:0;margin-top:2px;font-size:11.5px;color:var(--ink-soft);cursor:pointer;">👥 0명</button>
@@ -1425,7 +1461,7 @@
 
 <div class="side-screen" id="employeeOptionsScreen">
   <div class="side-header">
-    <button class="side-back" id="employeeOptionsBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="employeeOptionsBackBtn" type="button">‹</button>
     <span class="side-title">🗂️ 등록관리</span>
     <span style="width:44px;"></span>
   </div>
@@ -1436,7 +1472,7 @@
 
 <div class="side-screen" id="announcementScreen">
   <div class="side-header">
-    <button class="side-back" id="announcementBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="announcementBackBtn" type="button">‹</button>
     <span class="side-title">📢 공지사항</span>
     <span style="width:44px;"></span>
   </div>
@@ -1463,7 +1499,7 @@
 
 <div class="side-screen" id="teamDinnerScreen">
   <div class="side-header">
-    <button class="side-back" id="teamDinnerBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="teamDinnerBackBtn" type="button">‹</button>
     <span class="side-title">🍻 회식관리 (도란도란)</span>
     <button class="side-back" id="teamDinnerSettingsBtn" type="button" aria-label="회식비 설정">⚙️</button>
   </div>
@@ -1498,7 +1534,7 @@
 
 <div class="side-screen" id="evaluationScreen">
   <div class="side-header">
-    <button class="side-back" id="evaluationBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="evaluationBackBtn" type="button">‹</button>
     <span class="side-title">📋 개인인사평가</span>
     <div style="display:flex;gap:6px;">
       <button class="side-icon-circle" id="evalGradeTableBtn" type="button" aria-label="인사평가등급표">🧮</button>
@@ -1512,7 +1548,7 @@
 
 <div class="side-screen" id="evalGradeTableScreen">
   <div class="side-header">
-    <button class="side-back" id="evalGradeTableBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="evalGradeTableBackBtn" type="button">‹</button>
     <span class="side-title">🧮 인사평가등급표</span>
     <span style="width:44px;"></span>
   </div>
@@ -1523,7 +1559,7 @@
 
 <div class="side-screen" id="taskPerfScreen">
   <div class="side-header">
-    <button class="side-back" id="taskPerfBackBtn" type="button">‹</button>
+    <button class="icon-back-btn" id="taskPerfBackBtn" type="button">‹</button>
     <span class="side-title">🎯 과업 실적</span>
     <span style="width:44px;"></span>
   </div>
@@ -1580,7 +1616,7 @@
 <div class="sheet-backdrop" id="sheetBackdrop"></div>
 
 <div id="imageViewerModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.92);">
-  <button id="imageViewerCloseBtn" type="button" aria-label="닫기" style="position:absolute;top:calc(16px + env(safe-area-inset-top));right:16px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.15);color:#fff;border:none;font-size:22px;z-index:10000;cursor:pointer;">✕</button>
+  <button id="imageViewerCloseBtn" type="button" aria-label="닫기" style="position:absolute;top:calc(16px + env(safe-area-inset-top));right:16px;width:44px;height:44px;border-radius:50%;background:linear-gradient(145deg,#4a4a4d,#1c1c1e);color:#fff;border:none;font-size:22px;z-index:10000;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.3);">✕</button>
   <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;">
     <img id="imageViewerImg" src="" style="max-width:100%;max-height:100%;object-fit:contain;">
   </div>
@@ -1588,7 +1624,7 @@
 
 <div id="announcementDetailModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.5);align-items:center;justify-content:center;padding:20px;box-sizing:border-box;">
   <div style="background:var(--paper);border-radius:16px;max-width:420px;width:100%;max-height:85vh;overflow-y:auto;padding:20px;box-sizing:border-box;position:relative;">
-    <button id="announcementDetailCloseBtn" type="button" aria-label="닫기" style="position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;background:var(--paper-raised);color:var(--ink);border:none;font-size:16px;cursor:pointer;">✕</button>
+    <button id="announcementDetailCloseBtn" type="button" aria-label="닫기" style="position:absolute;top:12px;right:12px;width:32px;height:32px;border-radius:50%;background:linear-gradient(145deg,#4a4a4d,#1c1c1e);color:#fff;border:none;font-size:16px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,0.3);">✕</button>
     <div id="announcementDetailBody"></div>
   </div>
 </div>
