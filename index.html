@@ -180,6 +180,69 @@
     flex-shrink:0;
   }
 
+  /* ── [V3.1] 타이틀바 우측: 🔔 톡 알림 · 프로필 사진 · ≡ 메뉴 ── */
+  .hdr-actions{ position:relative; display:flex; gap:8px; align-items:center; flex-shrink:0; }
+  .hdr-iconbtn{
+    width:38px; height:38px; padding:0; border-radius:10px;
+    border:1px solid var(--line); background:var(--paper-raised); color:var(--ink);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0;
+    font-family:'IBM Plex Sans KR',sans-serif;
+  }
+  .hdr-iconbtn:active{ filter:brightness(0.95); }
+  .hdr-iconbtn svg{ width:22px; height:22px; display:block; }
+  .hdr-avatar{ border-radius:50%; overflow:hidden; }
+  .hdr-avatar img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .hdr-avatar .hdr-avatar-ph{ font-size:20px; line-height:1; }
+  .hdr-pmenu{
+    display:none; position:absolute; right:0; top:48px; max-width:calc(100vw - 24px); z-index:60; min-width:132px;
+    background:#fff; color:#111; border:1px solid var(--line); border-radius:12px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.22); padding:6px;
+  }
+  .hdr-pmenu.open{ display:block; }
+  .hdr-pmenu::before{
+    content:''; position:absolute; top:-7px; left:var(--caret-left, 13px); width:12px; height:12px;
+    background:#fff; border-left:1px solid var(--line); border-top:1px solid var(--line);
+    transform:rotate(45deg);
+  }
+  .hdr-pmenu-item{
+    position:relative; display:flex; align-items:center; gap:10px; width:100%;
+    background:none; border:none; padding:11px 12px; border-radius:8px; cursor:pointer;
+    font-family:'IBM Plex Sans KR',sans-serif; font-size:15px; color:#111; text-align:left;
+  }
+  .hdr-pmenu-item:hover, .hdr-pmenu-item:active{ background:#f1f1ee; }
+  .hdr-menu{
+    display:none; position:absolute; right:0; top:48px; z-index:60;
+    width:min(300px, calc(100vw - 32px));
+    background:#fff; color:#111; border:1px solid var(--line); border-radius:14px;
+    box-shadow:0 10px 30px rgba(0,0,0,0.22);
+  }
+  .hdr-menu.open{ display:block; }
+  .hdr-menu::before{
+    content:''; position:absolute; top:-7px; right:14px; width:12px; height:12px;
+    background:#fff; border-left:1px solid var(--line); border-top:1px solid var(--line);
+    transform:rotate(45deg);
+  }
+  .hdr-menu-top{
+    display:flex; align-items:center; gap:6px; padding:16px 18px 14px; cursor:pointer;
+    font-size:17px; border-bottom:1px solid #e6e6e6;
+  }
+  .hdr-menu-top b{ font-weight:700; }
+  .hdr-menu-top .hdr-chev{ color:#888; font-size:18px; }
+  .hdr-menu-sec{ padding:16px 18px 8px; font-size:15px; font-weight:700; }
+  .hdr-menu-grid{ display:flex; flex-wrap:wrap; gap:10px 8px; padding:4px 14px 18px; }
+  .hdr-menu-item{
+    width:52px; display:flex; flex-direction:column; align-items:center; gap:4px;
+    background:none; border:none; padding:0; cursor:pointer; color:#111;
+    font-family:'IBM Plex Sans KR',sans-serif;
+  }
+  .hdr-menu-ic{
+    position:relative; width:46px; height:46px; border-radius:50%;
+    border:1px solid var(--line); background:var(--paper-raised);
+    display:flex; align-items:center; justify-content:center; font-size:21px;
+  }
+  .hdr-menu-lb{ font-size:11px; color:#444; white-space:nowrap; }
+  #hdrMenuChatWrap .chat-unread-badge, #hdrBellWrap .chat-unread-badge{ top:-6px; right:-8px; }
+
   .card{
     background:var(--paper-raised);
     border:1px solid var(--line);
@@ -584,7 +647,7 @@
     display:block;
   }
   .field-label-strong{ font-weight:700; color:var(--ink); font-size:13.5px; }
-  input[type="text"], input[type="number"], input[type="date"], input[type="time"], input[type="password"], input[type="email"], select, textarea{
+  input[type="text"], input[type="number"], input[type="date"], input[type="month"], input[type="time"], input[type="password"], input[type="email"], select, textarea{
     width:100%;
     font-family:'IBM Plex Sans KR',sans-serif;
     font-size:16px;
@@ -596,6 +659,7 @@
   }
   textarea{ resize:vertical; min-height:60px; }
   input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="month"]::-webkit-calendar-picker-indicator,
   input[type="time"]::-webkit-calendar-picker-indicator{
     filter: invert(48%) sepia(90%) saturate(1000%) hue-rotate(1deg) brightness(95%) contrast(90%);
     cursor:pointer;
@@ -1141,7 +1205,7 @@
 
 <div class="lockscreen" id="lockScreen">
   <div class="lockcard">
-    <p class="eyebrow">WORK JOURNAL · V3.0</p>
+    <p class="eyebrow">WORK JOURNAL · V3.1</p>
     <h1 style="margin-bottom:18px;">💼 업무일지</h1>
     <p class="subtitle">로그인해주세요</p>
     <div class="chiprow" id="loginRoleChips" style="margin-bottom:18px;">
@@ -1185,14 +1249,35 @@
 </div>
 
 <div class="app" id="mainApp" style="display:none;">
-  <p class="eyebrow">WORK JOURNAL · V3.0</p>
+  <p class="eyebrow">WORK JOURNAL · V3.1</p>
   <div class="header-row">
     <h1 id="appTitle" style="cursor:pointer;">💼 업무일지</h1>
-    <div style="display:flex;gap:8px;">
+    <div id="legacyHeaderBtns" style="display:none;">
       <button class="assetbtn" id="statsOpenBtn" type="button" title="통계" aria-label="통계">📊</button>
       <button class="assetbtn" id="chatOpenBtnHeader" type="button" title="채팅" aria-label="채팅"><span class="chat-icon-badge-wrap" id="chatHeaderIconWrap">💬</span></button>
       <button class="assetbtn" id="communityOpenBtn" type="button" title="커뮤니티" aria-label="커뮤니티">🖼️</button>
       <button class="assetbtn" id="hrOpenBtn" type="button" title="인사관리" aria-label="인사관리">🧑‍💼</button>
+      <button class="assetbtn" id="adminerOpenBtn" type="button" title="DB 관리(Adminer)" aria-label="DB 관리(Adminer)" style="display:none;">🗄️</button>
+    </div>
+    <div class="hdr-actions" id="hdrActions">
+      <button class="hdr-iconbtn hdr-avatar" id="hdrProfileBtn" type="button" title="MY정보" aria-label="MY정보"></button>
+      <button class="hdr-iconbtn" id="hdrBellBtn" type="button" title="톡" aria-label="톡 알림"><span class="chat-icon-badge-wrap" id="hdrBellWrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10.3 20a1.9 1.9 0 0 0 3.4 0"/></svg></span></button>
+      <button class="hdr-iconbtn" id="hdrMenuBtn" type="button" title="메뉴" aria-label="메뉴" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <div class="hdr-pmenu" id="hdrProfileMenu" role="menu">
+        <button class="hdr-pmenu-item" id="hdrPmMyInfo" type="button" role="menuitem"><span>👤</span><span id="hdrPmMyInfoLb">MY정보</span></button>
+        <button class="hdr-pmenu-item" id="hdrPmLogout" type="button" role="menuitem"><span>🚪</span><span>로그아웃</span></button>
+      </div>
+      <div class="hdr-menu" id="hdrMenu" role="menu">
+        <div class="hdr-menu-top" id="hdrMenuProfile" role="button" tabindex="0"><span id="hdrMenuName"></span><span class="hdr-chev">›</span></div>
+        <div class="hdr-menu-sec">바로가기</div>
+        <div class="hdr-menu-grid">
+          <button class="hdr-menu-item" id="hdrItemStats" data-target="statsOpenBtn" type="button" role="menuitem"><span class="hdr-menu-ic">📊</span><span class="hdr-menu-lb">통계</span></button>
+          <button class="hdr-menu-item" id="hdrItemChat" data-target="chatOpenBtnHeader" type="button" role="menuitem"><span class="hdr-menu-ic"><span class="chat-icon-badge-wrap" id="hdrMenuChatWrap">💬</span></span><span class="hdr-menu-lb">톡</span></button>
+          <button class="hdr-menu-item" id="hdrItemCommunity" data-target="communityOpenBtn" type="button" role="menuitem"><span class="hdr-menu-ic">🖼️</span><span class="hdr-menu-lb">커뮤니티</span></button>
+          <button class="hdr-menu-item" id="hdrItemHr" data-target="hrOpenBtn" type="button" role="menuitem"><span class="hdr-menu-ic">🧑‍💼</span><span class="hdr-menu-lb">인사</span></button>
+          <button class="hdr-menu-item" id="hdrItemAdminer" data-target="adminerOpenBtn" type="button" role="menuitem"><span class="hdr-menu-ic">🗄️</span><span class="hdr-menu-lb">DB접속</span></button>
+        </div>
+      </div>
     </div>
   </div>
   <p class="subtitle">출장, 경비, 야근, 업무기록을 한 곳에 기록해요</p>
@@ -2092,10 +2177,24 @@
   function reportSyncError(where, err){
     var msg = err && err.message ? err.message : String(err);
     console.error('[Supabase 오류: '+where+']', err);
+    // 로그아웃 직후 마무리 중이던 요청의 오류(로그인 정보가 이미 지워진 상태라
+    // "permission denied"가 남)가 다음 로그인 화면까지 배너로 남지 않게, 로그인
+    // 상태가 아닐 때의 오류는 화면에 띄우지 않아요.
+    if(!loginMode) return;
     var banner = document.getElementById('syncErrorBanner');
     if(banner){
       banner.style.display = 'block';
       banner.textContent = '⚠️ 동기화 오류 ('+where+'): ' + msg;
+      // [진단] 권한 오류면 서버가 이 요청을 어떤 로그인 정보로 봤는지 덧붙여 보여줘요.
+      if(/permission denied|row-level security/i.test(msg)){
+        try{
+          supabaseClient.rpc('whoami').then(function(w){
+            var d = w && (w.data || w.error);
+            var c = d && d.claims ? d.claims : {};
+            banner.textContent += '\n[진단] db_role=' + (d && d.db_role) + ', employee_id=' + (d && d.employee_id) + ', emp_role=' + (c.emp_role||'-') + ', 토큰만료=' + (c.exp ? new Date(c.exp*1000).toLocaleString() : '-');
+          }).catch(function(){});
+        }catch(e2){}
+      }
     }
   }
   var settingsCache = {};
@@ -2344,7 +2443,13 @@
     applySizePref();
   }
   // ---------- Lock / login ----------
+  // [Vercel 빌드: Supabase 클라우드] (나스 빌드 설명) 지금 접속한 주소(나스 IP:포트 등)를 그대로 써요.
+  // IP가 바뀌거나 도메인을 연결해도 이 파일을 다시 수정할 필요가 없어요 —
+  // nginx가 같은 주소에서 /auth, /rest, /storage, /functions를 전부 중계해요.
   var SUPABASE_URL = 'https://vrvcbyovybovokfynpdl.supabase.co';
+  // [나스 자체호스팅 빌드] self-hosted 스택용 anon 키(JWT, role:"anon")예요.
+  // .env의 JWT_SECRET으로 서명돼 있어서, JWT_SECRET을 다시 생성하면 이 값도
+  // authapi/gen-keys.js로 다시 만들어서 여기 교체해야 해요(README 참고).
   var SUPABASE_ANON_KEY = 'sb_publishable_LQyZoHNRlMkJAXiIlfBrhw_G8aL_YoH';
   var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   // 직원 로그인은 관리자 계정 정보를 이 파일(브라우저에 그대로 노출됨)에 두지 않고,
@@ -2399,6 +2504,8 @@
   }
 
   async function unlockApp(){
+    var staleBanner = document.getElementById('syncErrorBanner');
+    if(staleBanner){ staleBanner.style.display = 'none'; staleBanner.textContent = ''; }
     document.getElementById('lockScreen').style.display = 'none';
     document.getElementById('mainApp').style.display = 'block';
     if(lockResolve){
@@ -2616,6 +2723,8 @@
   }
   async function logout(){
     stopChatPolling();
+    var outBanner = document.getElementById('syncErrorBanner');
+    if(outBanner){ outBanner.style.display = 'none'; outBanner.textContent = ''; }
     await supabaseClient.auth.signOut();
     currentEmployee = null;
     loginMode = null;
@@ -2710,10 +2819,18 @@
   // 등록된 것만(제한된 내용으로) 확인할 수 있어요. 장애(incident)는 여러 직원이
   // 함께 조치이력을 쌓아가는 공유 자원이라 근무기록처럼 항상 전체 공개해요.
   // 출장/경비/야근/복지비는 기존과 동일하게 일반 직원 화면에는 아예 노출되지 않아요.
+  // 일반 직원에게는 관리자가 부여하는 '지각'/'근무태만' 근무기록을 목록에서 숨겨요.
+  function isHiddenAttendanceForEmployee(e){
+    if(isAdminUser()) return false;
+    if(!e || e.type !== 'attendance') return false;
+    var n = stripEmojiForCompare(e.workType || '');
+    return n === '지각' || n === '근무태만';
+  }
   function visibleDayEntries(dateStr){
     var all = entriesForDate(dateStr);
     if(isAdminUser()) return all;
     return all.filter(function(e){
+      if(isHiddenAttendanceForEmployee(e)) return false;
       if(e.type === 'attendance' || e.type === 'incident') return true;
       if(e.type !== 'task') return false;
       if(!currentEmployee || e.employeeId === currentEmployee.id) return true;
@@ -5997,8 +6114,18 @@
 
 
   // ---------- MY정보 (직원 본인 정보 조회/수정) ----------
+  // [V3.1] 상단 프로필/메뉴 이름에서 열었으면 닫을 때 설정창을 다시 띄우지 않아요
+  // (설정 > MY정보로 들어온 경우에만 닫을 때 설정창으로 돌아가요).
+  var myInfoOpenedFromHeader = false;
+  var myInfoReturnToSettings = true;
+  function leaveMyInfo(){
+    if(myInfoReturnToSettings) openSheet('settingsSheet');
+    else closeSheet('myInfoSheet');
+  }
   function openMyInfoForm(){
     if(!currentEmployee) return;
+    myInfoReturnToSettings = !myInfoOpenedFromHeader;
+    myInfoOpenedFromHeader = false;
     empListIdPrefix = 'my';
     var existing = employees.find(function(x){ return x.id === currentEmployee.id; }) || currentEmployee;
     editingEmployeeId = existing.id;
@@ -6162,7 +6289,7 @@
       }, 1000);
     });
 
-    document.getElementById('my_cancelBtn').addEventListener('click', function(){ openSheet('settingsSheet'); });
+    document.getElementById('my_cancelBtn').addEventListener('click', leaveMyInfo);
     document.getElementById('my_saveBtn').addEventListener('click', saveMyInfoForm);
 
     openSheet('myInfoSheet');
@@ -6196,7 +6323,7 @@
       currentEmployee = updated;
     }
     applyRoleUI();
-    openSheet('settingsSheet');
+    leaveMyInfo();
   }
 
   // ---------- 개인인사평가 ----------
@@ -8162,7 +8289,7 @@
   var COMMUNITY_MAX_IMAGES = 5;
   var COMMUNITY_PAGE_SIZE = 5;
   var communityPosts = []; // [{id, employeeId, authorName, title, content, images:[path,...], createdAt, updatedAt}]
-  var communityViewMode = 'list'; // 'list' | 'thumb'
+  var communityViewMode = 'thumb'; // 'thumb'(썸네일: 제목 앞 작은 이미지가 붙은 목록) | 'gallery'(갤러리: 큰 이미지 격자)
   var communityListPage = 1;
   var editingCommunityPostId = null;
   var currentCommunityImages = []; // 작성 중인 폼의 이미지 상태 [{path, dataUrl, previewSrc, isNew}]
@@ -8207,7 +8334,18 @@
       if(!uid){ reportSyncError('커뮤니티 게시글 저장', '로그인 세션을 찾을 수 없어요'); return false; }
       var row = communityObjectToRow(obj, uid);
       var res = await supabaseClient.from('community_posts').upsert([row], { onConflict: 'id' });
-      if(res.error){ reportSyncError('커뮤니티 게시글 저장', res.error); return false; }
+      if(res.error){
+        // [진단] 권한(RLS) 오류일 때 어떤 로그인 정보로 요청이 갔는지 같이 보여줘요.
+        var dbg = '';
+        try{
+          var w = await supabaseClient.rpc('whoami');
+          dbg = JSON.stringify(w.data || w.error);
+        }catch(e2){ dbg = String(e2); }
+        reportSyncError('커뮤니티 게시글 저장', (res.error.message || '') +
+          '\n[진단] 보낸값 user_id=' + row.user_id + ', employee_id=' + row.employee_id +
+          '\n[진단] 서버가 본 로그인정보: ' + dbg);
+        return false;
+      }
       return true;
     }catch(e){ reportSyncError('커뮤니티 게시글 저장', e); return false; }
   }
@@ -8264,7 +8402,12 @@
   function renderCommunityScreen(){
     var body = document.getElementById('communityBody');
     var toggleBtn = document.getElementById('communityViewToggleBtn');
-    if(toggleBtn) toggleBtn.textContent = (communityViewMode === 'list') ? '🔳' : '📋';
+    if(toggleBtn){
+      // 눌렀을 때 바뀔 보기 방식을 아이콘/툴팁으로 알려줘요.
+      toggleBtn.textContent = (communityViewMode === 'gallery') ? '📋' : '🔳';
+      toggleBtn.title = (communityViewMode === 'gallery') ? '썸네일 보기로 전환' : '갤러리 보기로 전환';
+      toggleBtn.setAttribute('aria-label', toggleBtn.title);
+    }
     var html = '';
     html += '<button class="savebtn" id="addCommunityPostBtn" type="button" style="width:100%;margin-bottom:16px;">+ 새 글 등록</button>';
     var sorted = communityPosts.slice().sort(function(a,b){ return (b.createdAt||'') < (a.createdAt||'') ? -1 : 1; });
@@ -8276,7 +8419,7 @@
 
     if(sorted.length === 0){
       html += '<p class="empty-inline">등록된 게시글이 없어요.</p>';
-    }else if(communityViewMode === 'thumb'){
+    }else if(communityViewMode === 'gallery'){
       html += '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;">';
       pageItems.forEach(function(p){
         html += '<div class="rule-card" data-community-open="'+p.id+'" style="cursor:pointer;padding:0;overflow:hidden;">';
@@ -8296,7 +8439,16 @@
     }else{
       pageItems.forEach(function(p){
         html += '<div class="rule-card" data-community-open="'+p.id+'" style="margin-bottom:10px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:10px;">';
-        html += '<p style="font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">'+escapeHtml(p.title||'')+(p.images&&p.images.length?' · 🖼️'+p.images.length:'')+'</p>';
+        html += '<div style="display:flex;align-items:center;gap:10px;min-width:0;flex:1;">';
+        html += '<div style="width:46px;height:46px;flex-shrink:0;border-radius:8px;overflow:hidden;background:var(--paper-raised);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;">';
+        if(p.images && p.images[0]){
+          html += '<img data-community-thumb="'+escapeHtml(p.images[0])+'" alt="" style="width:100%;height:100%;object-fit:cover;display:block;">';
+        }else{
+          html += '<span style="font-size:20px;">🖼️</span>';
+        }
+        html += '</div>';
+        html += '<p style="font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;">'+escapeHtml(p.title||'')+(p.images&&p.images.length>1?' · 🖼️'+p.images.length:'')+'</p>';
+        html += '</div>';
         html += '<p style="font-size:12px;color:var(--ink-faint);text-align:right;white-space:nowrap;flex-shrink:0;">'+escapeHtml(p.authorName||'-')+'<br>'+((p.createdAt||'').slice(0,10))+'</p>';
         html += '</div>';
       });
@@ -9067,10 +9219,97 @@
   // 비밀번호는 서버(employee-auth 함수)가 쓰는 것과 동일한 PBKDF2(SHA-256, 10만회
   // 반복) 형식으로 브라우저에서 미리 해시해서 보내요. 이렇게 하면 새로 바꾼
   // 비밀번호가 평문 상태로 DB에 잠깐이라도 저장되는 일이 없어요.
+  // [NAS 포팅] http:// 로 접속하면(브라우저 보안 규칙상 https/localhost가 아니면)
+  // crypto.subtle을 쓸 수 없어요. 그럴 때를 위한 순수 자바스크립트 PBKDF2-SHA256
+  // (결과는 crypto.subtle과 완전히 동일 — 서버 로그인 검증과 호환돼요).
+  function pbkdf2Sha256Js(passwordBytes, salt, iterations){
+    var K = new Int32Array([
+      0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+      0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+      0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+      0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+      0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+      0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+      0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+      0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2]);
+    var W = new Int32Array(64);
+    // 64바이트 블록 하나를 압축해서 상태(h, 8개 정수)를 갱신
+    function compress(h, b){
+      var i, a, bb, c, d, e, f, g, hh, t1, t2, w15, w2, s0, s1;
+      for(i=0;i<16;i++) W[i] = b[i];
+      for(i=16;i<64;i++){
+        w15 = W[i-15]; w2 = W[i-2];
+        s0 = ((w15>>>7)|(w15<<25)) ^ ((w15>>>18)|(w15<<14)) ^ (w15>>>3);
+        s1 = ((w2>>>17)|(w2<<15)) ^ ((w2>>>19)|(w2<<13)) ^ (w2>>>10);
+        W[i] = (W[i-16] + s0 + W[i-7] + s1) | 0;
+      }
+      a=h[0]; bb=h[1]; c=h[2]; d=h[3]; e=h[4]; f=h[5]; g=h[6]; hh=h[7];
+      for(i=0;i<64;i++){
+        t1 = (hh + (((e>>>6)|(e<<26)) ^ ((e>>>11)|(e<<21)) ^ ((e>>>25)|(e<<7))) + ((e&f) ^ (~e&g)) + K[i] + W[i]) | 0;
+        t2 = ((((a>>>2)|(a<<30)) ^ ((a>>>13)|(a<<19)) ^ ((a>>>22)|(a<<10))) + ((a&bb) ^ (a&c) ^ (bb&c))) | 0;
+        hh=g; g=f; f=e; e=(d+t1)|0; d=c; c=bb; bb=a; a=(t1+t2)|0;
+      }
+      h[0]=(h[0]+a)|0; h[1]=(h[1]+bb)|0; h[2]=(h[2]+c)|0; h[3]=(h[3]+d)|0;
+      h[4]=(h[4]+e)|0; h[5]=(h[5]+f)|0; h[6]=(h[6]+g)|0; h[7]=(h[7]+hh)|0;
+    }
+    var IV = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+    // 비밀번호를 64바이트 HMAC 키 블록으로 (64바이트 초과 시 먼저 SHA-256)
+    function sha256Bytes(bytes){
+      var h = new Int32Array(IV), n = bytes.length, total = (((n + 9 + 63) >> 6) << 6), buf = new Uint8Array(total), blk = new Int32Array(16), i, j;
+      buf.set(bytes); buf[n] = 0x80;
+      var bits = n * 8; buf[total-4] = (bits>>>24)&255; buf[total-3] = (bits>>>16)&255; buf[total-2] = (bits>>>8)&255; buf[total-1] = bits&255;
+      for(i=0;i<total;i+=64){ for(j=0;j<16;j++) blk[j] = (buf[i+4*j]<<24)|(buf[i+4*j+1]<<16)|(buf[i+4*j+2]<<8)|buf[i+4*j+3]; compress(h, blk); }
+      var out = new Uint8Array(32); for(i=0;i<8;i++){ out[4*i]=h[i]>>>24; out[4*i+1]=(h[i]>>>16)&255; out[4*i+2]=(h[i]>>>8)&255; out[4*i+3]=h[i]&255; }
+      return out;
+    }
+    var key = passwordBytes.length > 64 ? sha256Bytes(passwordBytes) : passwordBytes;
+    var ipadW = new Int32Array(16), opadW = new Int32Array(16), i;
+    for(i=0;i<16;i++){
+      var k0 = (i*4   < key.length ? key[i*4]   : 0), k1 = (i*4+1 < key.length ? key[i*4+1] : 0),
+          k2 = (i*4+2 < key.length ? key[i*4+2] : 0), k3 = (i*4+3 < key.length ? key[i*4+3] : 0);
+      var kw = (k0<<24)|(k1<<16)|(k2<<8)|k3;
+      ipadW[i] = kw ^ 0x36363636; opadW[i] = kw ^ 0x5c5c5c5c;
+    }
+    // ipad/opad 블록을 한 번만 압축해 두고(상태 저장) 매 반복마다 재사용
+    var iState = new Int32Array(IV), oState = new Int32Array(IV);
+    compress(iState, ipadW); compress(oState, opadW);
+    var h1 = new Int32Array(8), h2 = new Int32Array(8), blk = new Int32Array(16), U = new Int32Array(8), T = new Int32Array(8), j;
+    // 첫 반복: HMAC(password, salt || INT(1)) — 길이가 가변이라 바이트 단위로 처리
+    var msg = new Uint8Array(salt.length + 4); msg.set(salt); msg[salt.length+3] = 1;
+    var n2 = msg.length, total2 = (((n2 + 9 + 63) >> 6) << 6), buf2 = new Uint8Array(total2);
+    buf2.set(msg); buf2[n2] = 0x80;
+    var bitLen = (n2 + 64) * 8; buf2[total2-4]=(bitLen>>>24)&255; buf2[total2-3]=(bitLen>>>16)&255; buf2[total2-2]=(bitLen>>>8)&255; buf2[total2-1]=bitLen&255;
+    h1.set(iState);
+    for(i=0;i<total2;i+=64){ for(j=0;j<16;j++) blk[j]=(buf2[i+4*j]<<24)|(buf2[i+4*j+1]<<16)|(buf2[i+4*j+2]<<8)|buf2[i+4*j+3]; compress(h1, blk); }
+    function outer(inner){ // inner: 8워드 → HMAC 바깥쪽 해시
+      h2.set(oState);
+      for(var q=0;q<8;q++) blk[q]=inner[q];
+      blk[8]=0x80000000|0; for(q=9;q<15;q++) blk[q]=0; blk[15]=(64+32)*8;
+      compress(h2, blk);
+      return h2;
+    }
+    var r = outer(h1); for(j=0;j<8;j++){ U[j]=r[j]; T[j]=r[j]; }
+    for(var it=1; it<iterations; it++){
+      h1.set(iState);
+      for(j=0;j<8;j++) blk[j]=U[j];
+      blk[8]=0x80000000|0; for(j=9;j<15;j++) blk[j]=0; blk[15]=(64+32)*8;
+      compress(h1, blk);
+      r = outer(h1);
+      for(j=0;j<8;j++){ U[j]=r[j]; T[j]^=r[j]; }
+    }
+    var out = new Uint8Array(32);
+    for(i=0;i<8;i++){ out[4*i]=T[i]>>>24; out[4*i+1]=(T[i]>>>16)&255; out[4*i+2]=(T[i]>>>8)&255; out[4*i+3]=T[i]&255; }
+    return out;
+  }
   async function hashPasswordClient(password){
     var salt = crypto.getRandomValues(new Uint8Array(16));
-    var keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
-    var bits = await crypto.subtle.deriveBits({ name:'PBKDF2', salt:salt, iterations:100000, hash:'SHA-256' }, keyMaterial, 256);
+    var bits;
+    if(window.crypto && crypto.subtle){
+      var keyMaterial = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+      bits = await crypto.subtle.deriveBits({ name:'PBKDF2', salt:salt, iterations:100000, hash:'SHA-256' }, keyMaterial, 256);
+    }else{
+      bits = pbkdf2Sha256Js(new TextEncoder().encode(password), salt, 100000);
+    }
     var hashB64 = btoa(String.fromCharCode.apply(null, new Uint8Array(bits)));
     var saltB64 = btoa(String.fromCharCode.apply(null, salt));
     return 'pbkdf2$100000$'+saltB64+'$'+hashB64;
@@ -11271,7 +11510,9 @@
     // 붙이는 걸로 안전하게 대체해요.
     [
       { btnId: 'chatOpenBtnHeader', wrapId: 'chatHeaderIconWrap' },
-      { btnId: 'chatOpenBtnEmp', wrapId: 'chatEmpIconWrap' }
+      { btnId: 'chatOpenBtnEmp', wrapId: 'chatEmpIconWrap' },
+      { btnId: 'hdrBellBtn', wrapId: 'hdrBellWrap' },
+      { btnId: 'hdrItemChat', wrapId: 'hdrMenuChatWrap' }
     ].forEach(function(cfg){
       var btn = document.getElementById(cfg.btnId);
       if(!btn) return;
@@ -11290,13 +11531,20 @@
     });
   }
 
+  var chatPollGen = 0;
   function startChatPolling(){
     stopChatPolling();
+    var myGen = chatPollGen;
     chatPollTimer = setInterval(async function(){
+      if(myGen !== chatPollGen || !loginMode) return;
       chatMessages = await loadChatMessages();
+      if(myGen !== chatPollGen) return;
       chatReads = await loadChatReads();
+      if(myGen !== chatPollGen) return;
       chatRoomHides = await loadChatRoomHides();
+      if(myGen !== chatPollGen) return;
       await refreshChatCustomRooms();
+      if(myGen !== chatPollGen) return;
       if(document.getElementById('chatRoomScreen').classList.contains('open')){
         renderChatRoomMessages();
         refreshChatRoomHeaderIfOpen();
@@ -11308,6 +11556,7 @@
     }, CHAT_POLL_MS);
   }
   function stopChatPolling(){
+    chatPollGen++;
     if(chatPollTimer){ clearInterval(chatPollTimer); chatPollTimer = null; }
   }
 
@@ -12389,6 +12638,8 @@
       budgetWarningPct: budgetWarningPct,
       overtimePresets: overtimePresets,
       welfareLimits: welfareLimits,
+      attendanceTimePresets: attendanceTimePresets,
+      tenureAmounts: tenureAmounts,
       employees: employees,
       employeeCompanies: employeeCompanies,
       employeeDepartments: employeeDepartments,
@@ -12399,6 +12650,7 @@
       evaluations: evaluations,
       taskPerformances: taskPerformances,
       announcements: announcements,
+      interviews: interviews,
       exportedAt: new Date().toISOString(),
       app:'work-journal',
       version:3
@@ -12461,6 +12713,14 @@
           welfareLimits = Object.assign({education:0,checkup:0,travel:0}, data.welfareLimits);
           await saveWelfareLimits();
         }
+        if(data.attendanceTimePresets && typeof data.attendanceTimePresets === 'object'){
+          attendanceTimePresets = Object.assign({}, data.attendanceTimePresets);
+          await saveAttendanceTimePresets();
+        }
+        if(data.tenureAmounts && typeof data.tenureAmounts === 'object'){
+          tenureAmounts = Object.assign({}, DEFAULT_TENURE_AMOUNTS, data.tenureAmounts);
+          await saveTenureAmounts();
+        }
         if(data.budgetWarningPct != null){
           budgetWarningPct = parseFloat(data.budgetWarningPct) || 0;
           await saveBudgetWarningPct();
@@ -12512,6 +12772,14 @@
           await saveAnnouncements();
           renderAnnouncementBanner();
         }
+        if(data.interviews && Array.isArray(data.interviews)){
+          var existingInterviewIds = {};
+          interviews.forEach(function(x){ existingInterviewIds[x.id] = true; });
+          data.interviews.forEach(function(x){
+            if(!existingInterviewIds[x.id]) interviews.push(x);
+          });
+          await saveInterviews();
+        }
         var pwRestored = false;
         renderCalendar();
         renderDayDetail();
@@ -12522,6 +12790,7 @@
         if(data.evaluations && Array.isArray(data.evaluations) && data.evaluations.length > 0) extraMsgs.push('인사평가');
         if(data.taskPerformances && Array.isArray(data.taskPerformances) && data.taskPerformances.length > 0) extraMsgs.push('과업실적');
         if(data.announcements && Array.isArray(data.announcements) && data.announcements.length > 0) extraMsgs.push('공지사항');
+        if(data.interviews && Array.isArray(data.interviews) && data.interviews.length > 0) extraMsgs.push('면담기록');
         t.textContent = added + '개의 기록을 불러왔어요' + (extraMsgs.length ? ' ('+extraMsgs.join(', ')+'도 복원됐어요)' : '');
       }catch(err){
         t.style.color = 'var(--brick)';
@@ -12665,6 +12934,7 @@
     var admin = isAdminUser();
     var myJob = currentEmployee ? currentEmployee.job : null;
     return entries.filter(function(e){
+      if(isHiddenAttendanceForEmployee(e)) return false;
       // 근무기록은 '유형'에서 명시적으로 선택했을 때만 목록에 포함
       if(e.type === 'attendance' && statsTypeMode !== 'attendance') return false;
       // 일반 권한은 출장/경비/야근/복지비 기록을 통계에서 볼 수 없음
@@ -13900,6 +14170,7 @@
       currentMonthTypeSheetType = null;
       monthTypeConfirmDeleteId = null;
     });
+    setupHeaderBar();
     document.getElementById('statsOpenBtn').addEventListener('click', function(){
       statsPeriodMode = 'all';
       statsTypeMode = 'all';
@@ -13975,7 +14246,7 @@
       document.getElementById('communityScreen').classList.remove('open');
     });
     document.getElementById('communityViewToggleBtn').addEventListener('click', function(){
-      communityViewMode = (communityViewMode === 'list') ? 'thumb' : 'list';
+      communityViewMode = (communityViewMode === 'gallery') ? 'thumb' : 'gallery';
       renderCommunityScreen();
     });
     document.getElementById('communityFormCloseBtn').addEventListener('click', function(){ closeSheet('communityFormSheet'); });
@@ -14230,7 +14501,7 @@
     document.getElementById('logoutBtn').addEventListener('click', logout);
     document.getElementById('appTitle').addEventListener('click', function(){ location.reload(); });
     document.getElementById('myInfoOpenBtn').addEventListener('click', function(){ openMyInfoForm(); });
-    document.getElementById('myInfoCloseBtn').addEventListener('click', function(){ openSheet('settingsSheet'); });
+    document.getElementById('myInfoCloseBtn').addEventListener('click', leaveMyInfo);
   }
 
   // ---------- 직원별 로그인 (ver3.0) ----------
@@ -14241,6 +14512,16 @@
     var admin = isAdminUser();
     var hrBtn = document.getElementById('hrOpenBtn');
     if(hrBtn) hrBtn.style.display = admin ? '' : 'none';
+    var adminerBtn = document.getElementById('adminerOpenBtn');
+    if(adminerBtn){
+      adminerBtn.style.display = 'none';
+      if(!adminerBtn.dataset.bound){
+        adminerBtn.dataset.bound = '1';
+        adminerBtn.addEventListener('click', function(){
+          window.open(window.location.origin + '/admin/', '_blank', 'noopener');
+        });
+      }
+    }
     var statsRow = document.querySelector('.statsrow-top');
     if(statsRow) statsRow.style.display = admin ? '' : 'none';
     // 장애통계는 전 직원의 장애내역을 모아 보는 관리자용 화면이라, 통계
@@ -14297,7 +14578,105 @@
     // 공지사항은 설정 화면의 이름정보(currentEmployeeInfo) 바로 아래, 관리자에게만 표시돼요.
     var annSection = document.getElementById('settingsAnnouncementSection');
     if(annSection) annSection.style.display = admin ? '' : 'none';
+    updateHeaderBar();
   }
+
+  // [V3.1 헤더 시작]
+  // 타이틀바 우측: 🔔(톡 알림→톡방) · 프로필 사진(→MY정보) · ≡ 메뉴(통계/톡/커뮤니티/인사/DB접속).
+  // 기존 5개 버튼은 숨겨진 상태로 DOM에 남겨두고(기존 클릭 처리/배지 로직 재사용),
+  // ≡ 메뉴 항목은 그 버튼을 대신 눌러줘요.
+  function openHeaderProfile(){
+    if(currentEmployee){ myInfoOpenedFromHeader = true; openMyInfoForm(); return; }
+    var fab = document.getElementById('fabSettingsBtn');
+    if(fab) fab.click();
+  }
+  function closeHeaderMenu(){
+    var m = document.getElementById('hdrMenu'), b = document.getElementById('hdrMenuBtn');
+    if(m) m.classList.remove('open');
+    if(b) b.setAttribute('aria-expanded', 'false');
+    var pm = document.getElementById('hdrProfileMenu');
+    if(pm) pm.classList.remove('open');
+  }
+  function updateHeaderBar(){
+    var admin = isAdminUser();
+    var chatAllowed = admin || featurePermissions.chat !== false;
+    var communityAllowed = admin || featurePermissions.community !== false;
+    var avatar = document.getElementById('hdrProfileBtn');
+    if(avatar){
+      avatar.innerHTML = (currentEmployee && currentEmployee.photo)
+        ? '<img alt="" src="'+currentEmployee.photo+'">'
+        : '<span class="hdr-avatar-ph">👤</span>';
+    }
+    var pmLb = document.getElementById('hdrPmMyInfoLb');
+    if(pmLb) pmLb.textContent = currentEmployee ? 'MY정보' : '설정';
+    var nameEl = document.getElementById('hdrMenuName');
+    if(nameEl){
+      var nm = currentEmployee ? currentEmployee.name : '관리자';
+      nameEl.innerHTML = '<b>'+escapeHtml(nm||'')+'</b>님';
+    }
+    function show(id, on){ var el = document.getElementById(id); if(el) el.style.display = on ? '' : 'none'; }
+    // 일반 직원은 톡 퀵메뉴(채팅 버튼)가 따로 있어서 상단 🔔은 관리자에게만 보여요.
+    show('hdrBellBtn', admin && chatAllowed);
+    show('hdrItemChat', chatAllowed);
+    show('hdrItemCommunity', communityAllowed);
+    show('hdrItemHr', admin);
+    show('hdrItemAdminer', false);
+  }
+  function setupHeaderBar(){
+    var menuBtn = document.getElementById('hdrMenuBtn');
+    var menu = document.getElementById('hdrMenu');
+    if(!menuBtn || !menu) return;
+    menuBtn.addEventListener('click', function(ev){
+      ev.stopPropagation();
+      var willOpen = !menu.classList.contains('open');
+      closeHeaderMenu();
+      if(willOpen){ updateHeaderBar(); menu.classList.add('open'); }
+      menuBtn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+    });
+    menu.addEventListener('click', function(ev){ ev.stopPropagation(); });
+    document.addEventListener('click', closeHeaderMenu);
+    document.addEventListener('keydown', function(ev){ if(ev.key === 'Escape') closeHeaderMenu(); });
+    Array.prototype.forEach.call(menu.querySelectorAll('.hdr-menu-item'), function(item){
+      item.addEventListener('click', function(){
+        closeHeaderMenu();
+        var t = document.getElementById(item.getAttribute('data-target'));
+        if(t) t.click();
+      });
+    });
+    function profile(){ closeHeaderMenu(); openHeaderProfile(); }
+    document.getElementById('hdrMenuProfile').addEventListener('click', profile);
+    document.getElementById('hdrMenuProfile').addEventListener('keydown', function(ev){ if(ev.key === 'Enter') profile(); });
+    // 프로필 사진: 누르면 MY정보 / 로그아웃 작은 메뉴가 열려요.
+    var pmenu = document.getElementById('hdrProfileMenu');
+    document.getElementById('hdrProfileBtn').addEventListener('click', function(ev){
+      ev.stopPropagation();
+      var willOpen = !pmenu.classList.contains('open');
+      closeHeaderMenu();
+      if(willOpen){
+        updateHeaderBar(); pmenu.classList.add('open');
+        try{
+          var pb = document.getElementById('hdrProfileBtn').getBoundingClientRect();
+          var pr = pmenu.getBoundingClientRect();
+          var left = pb.left + pb.width/2 - pr.left - 6;
+          left = Math.max(10, Math.min(left, pr.width - 24));
+          pmenu.style.setProperty('--caret-left', left+'px');
+        }catch(_){}
+      }
+    });
+    pmenu.addEventListener('click', function(ev){ ev.stopPropagation(); });
+    document.getElementById('hdrPmMyInfo').addEventListener('click', profile);
+    document.getElementById('hdrPmLogout').addEventListener('click', function(){
+      closeHeaderMenu();
+      logout();
+    });
+    document.getElementById('hdrBellBtn').addEventListener('click', function(){
+      closeHeaderMenu();
+      var t = document.getElementById('chatOpenBtnHeader');
+      if(t) t.click();
+    });
+    updateHeaderBar();
+  }
+  // [V3.1 헤더 끝]
 
   async function init(){
     try{
